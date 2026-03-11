@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile information for library visitors.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "name": { "type": "string", "description": "Full name" },
+        "college": { "type": "string", "description": "College or department" },
+        "studentId": { "type": "string", "description": "Student ID number" },
+        "isBlocked": { "type": "boolean", "description": "Whether the user is blocked from the library" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "User role" }
+      },
+      "required": ["uid", "email", "name", "college", "isBlocked"]
+    },
+    "VisitLog": {
+      "title": "Visit Log",
+      "description": "Log entry for a library visit.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "userName": { "type": "string", "description": "User name" },
+        "college": { "type": "string", "description": "User college" },
+        "reason": { "type": "string", "description": "Reason for visit" },
+        "timestamp": { "type": "object", "description": "Entry timestamp" },
+        "exitTimestamp": { "type": "object", "description": "Exit timestamp" }
+      },
+      "required": ["uid", "userName", "college", "reason", "timestamp"]
+    },
+    "LibraryStats": {
+      "title": "Library Stats",
+      "description": "Real-time statistics for the library.",
+      "type": "object",
+      "properties": {
+        "occupancy": { "type": "integer", "description": "Current number of people in the library" }
+      },
+      "required": ["occupancy"]
+    }
+  },
+  "firestore": {
+    "users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profiles"
+    },
+    "visitLogs/{logId}": {
+      "schema": "VisitLog",
+      "description": "Library visit logs"
+    },
+    "stats/library": {
+      "schema": "LibraryStats",
+      "description": "Library occupancy stats"
+    }
+  }
+}

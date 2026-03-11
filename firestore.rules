@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - name: string (required)
+    //   - college: string (required)
+    //   - studentId: string (optional)
+    //   - isBlocked: boolean (required)
+    //   - role: string (optional, 'admin' | 'user')
+    //
+    // Collection: visitLogs
+    // Document ID: {logId}
+    // Fields:
+    //   - uid: string (required)
+    //   - userName: string (required)
+    //   - college: string (required)
+    //   - reason: string (required)
+    //   - timestamp: timestamp (required)
+    //   - exitTimestamp: timestamp (optional)
+    //
+    // Collection: stats
+    // Document ID: library
+    // Fields:
+    //   - occupancy: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'library officer']) ||
+          (request.auth.token.email in ["johnliannerecina@gmail.com", "johnlian.nerecina@neu.edu.ph"] && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'college', 'isBlocked']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.college is string && data.college.size() > 0 &&
+             data.isBlocked is bool &&
+             (!('role' in data) || data.role in ['admin', 'user', 'library officer']);
+    }
+
+    function isValidVisitLog(data) {
+      return data.keys().hasAll(['uid', 'userName', 'college', 'reason', 'timestamp']) &&
+             data.uid is string && 
+             (data.uid == request.auth.uid || isAdmin()) &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.college is string && data.college.size() > 0 &&
+             data.reason is string && data.reason.size() > 0 &&
+             data.timestamp is timestamp &&
+             (!('exitTimestamp' in data) || data.exitTimestamp == null || data.exitTimestamp is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role && request.resource.data.isBlocked == resource.data.isBlocked) || isAdmin());
+      allow list: if isAdmin();
+    }
+
+    match /visitLogs/{logId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && isValidVisitLog(request.resource.data);
+      allow update: if isAuthenticated() && isValidVisitLog(request.resource.data) && 
+                    (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /stats/{statId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && statId == 'library';
+    }
+  }
+}
