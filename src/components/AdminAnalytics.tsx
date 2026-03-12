@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Printer, Calendar, Database, Download, TrendingUp, TrendingDown } from 'lucide-react';
-import { collection, onSnapshot, addDoc, Timestamp, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, Timestamp, query, where, getDocs, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { useReactToPrint } from 'react-to-print';
@@ -70,7 +70,8 @@ const AdminAnalytics = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'visitLogs'), (logsSnap) => {
+    const q = query(collection(db, 'visitLogs'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (logsSnap) => {
       setLogs(logsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => {
       console.error(err);

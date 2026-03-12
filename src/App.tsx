@@ -295,6 +295,12 @@ export default function App() {
       if (docSnap.exists()) {
         let data = docSnap.data() as UserProfile;
         
+        // Sync photoURL if missing and available in auth
+        if (!data.photoURL && auth.currentUser?.photoURL) {
+          data.photoURL = auth.currentUser.photoURL;
+          await updateDoc(docRef, { photoURL: data.photoURL });
+        }
+
         // Auto-upgrade role for specific emails if needed
         if (data.email === ADMIN_EMAIL && data.role !== 'admin') {
           data.role = 'admin';
@@ -925,8 +931,12 @@ function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfil
               {profile.role === 'admin' ? 'Administrator' : profile.role === 'library officer' ? 'Library Officer' : 'Student'}
             </p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white/10 flex items-center justify-center text-white font-bold shrink-0">
-            {profile.name.charAt(0)}
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white/10 flex items-center justify-center text-white font-bold shrink-0 overflow-hidden">
+            {profile.photoURL ? (
+              <img src={profile.photoURL} alt={profile.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              profile.name.charAt(0)
+            )}
           </div>
           <button 
             onClick={onLogout}
@@ -963,8 +973,9 @@ function LibraryCapacity({ occupancy, capacity }: { occupancy: number, capacity:
 
 function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: UserProfile, logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
   const [occupancy, setOccupancy] = useState(0);
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<VisitLog[]>([]);
+  const [systemActivities, setSystemActivities] = useState<SystemActivity[]>([]);
   const [isBulkDeleteMode, setIsBulkDeleteMode] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
@@ -1051,26 +1062,34 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     
     // Fetch users and logs, then filter them
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const allUsers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      setUsers(allUsers.filter(u => u.role !== 'admin' && u.role !== 'library officer'));
+      setAllUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
     
-    const unsubLogs = onSnapshot(collection(db, 'visitLogs'), async (snapshot) => {
-      try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const adminUids = usersSnap.docs
-          .filter(doc => doc.data().role === 'admin' || doc.data().role === 'library officer')
-          .map(doc => doc.id);
-        
-        setLogs(snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as VisitLog))
-          .filter(log => !adminUids.includes(log.uid)));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, 'users');
-      }
+    const unsubLogs = onSnapshot(query(collection(db, 'visitLogs'), orderBy('timestamp', 'desc')), (snapshot) => {
+      setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VisitLog)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'visitLogs'));
-    return () => { unsubStats(); unsubUsers(); unsubLogs(); };
+
+    const unsubSystemActivities = onSnapshot(query(collection(db, 'system_activities'), orderBy('timestamp', 'desc'), limit(10)), (snapshot) => {
+      setSystemActivities(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemActivity)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'system_activities'));
+
+    return () => { unsubStats(); unsubUsers(); unsubLogs(); unsubSystemActivities(); };
   }, []);
+
+  const adminUids = useMemo(() => {
+    return new Set(allUsers
+      .filter(u => u.role === 'admin' || u.role === 'library officer')
+      .map(u => u.uid));
+  }, [allUsers]);
+
+  const displayUsers = useMemo(() => {
+    return allUsers;
+  }, [allUsers]);
+
+  const displayLogs = useMemo(() => {
+    return logs.filter(log => !adminUids.has(log.uid));
+  }, [logs, adminUids]);
+
 
   const handleBlockToggle = async (user: UserProfile) => {
     try {
@@ -1152,14 +1171,14 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
       const batch = writeBatch(db);
       
       // Delete non-admin users
-      users.forEach(u => {
+      displayUsers.forEach(u => {
         if (u.uid !== profile.uid) {
           batch.delete(doc(db, 'users', u.uid));
         }
       });
 
       // Delete all logs
-      logs.forEach(l => {
+      displayLogs.forEach(l => {
         batch.delete(doc(db, 'visitLogs', l.id));
       });
 
@@ -1226,13 +1245,13 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = displayUsers.filter(u => 
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.college.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.studentId?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredLogs = logs.filter(l => 
+  const filteredLogs = displayLogs.filter(l => 
     l.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     l.college.toLowerCase().includes(searchQuery.toLowerCase()) ||
     l.reason.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1360,7 +1379,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         </div>
       </div>
 
-      {users.length === 0 && !isSeeding && (
+      {displayUsers.length === 0 && !isSeeding && (
         <div className="glass-card p-12 text-center space-y-4 border-dashed border-2 border-blue-500/30">
           <Database className="w-12 h-12 text-blue-500 mx-auto opacity-50" />
           <div className="space-y-2">
@@ -1378,14 +1397,21 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         </div>
       )}
 
-      <h2 className="text-xl md:text-2xl font-bold mb-4">{profile.role === 'admin' ? 'Library Director' : 'Library Officer'} Dashboard</h2>
+      <h2 className="text-xl md:text-2xl font-bold mb-4">{profile.role === 'admin' ? 'Administrator' : 'Library Officer'} Dashboard</h2>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard icon={<Users className="w-6 h-6" />} label="Today's Visitors" value={logs.filter(l => l.timestamp?.toDate().toDateString() === new Date().toDateString()).length} />
+        <StatCard 
+          icon={<Users className="w-6 h-6" />} 
+          label="Today's Visitors" 
+          value={displayLogs.filter(l => {
+            const date = l.timestamp?.toDate();
+            return date && date.toDateString() === new Date().toDateString();
+          }).length} 
+        />
         <StatCard icon={<DoorOpen className="w-6 h-6" />} label="Current Occupancy" value={occupancy} />
-        <StatCard icon={<Calendar className="w-6 h-6" />} label="Weekly Total" value={logs.length} />
-        <StatCard icon={<Zap className="w-6 h-6" />} label="Active Users" value={users.filter(u => !u.isBlocked).length} />
+        <StatCard icon={<Calendar className="w-6 h-6" />} label="Weekly Total" value={displayLogs.length} />
+        <StatCard icon={<Zap className="w-6 h-6" />} label="Active Users" value={displayUsers.filter(u => !u.isBlocked).length} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4 md:gap-8">
@@ -1410,7 +1436,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
             <table className="w-full text-[10px] md:text-sm">
               <thead>
                 <tr className="text-[var(--text-muted)] border-b border-white/10">
-                  {isBulkDeleteMode && <th className="py-2 md:py-4 px-1 md:px-2"><input type="checkbox" checked={selectedUsers.size === users.length} onChange={(e) => setSelectedUsers(e.target.checked ? new Set(users.map(u => u.uid)) : new Set())} /></th>}
+                  {isBulkDeleteMode && <th className="py-2 md:py-4 px-1 md:px-2"><input type="checkbox" checked={selectedUsers.size === displayUsers.length} onChange={(e) => setSelectedUsers(e.target.checked ? new Set(displayUsers.map(u => u.uid)) : new Set())} /></th>}
                   <th className="text-left py-2 md:py-4 px-1 md:px-2">USER NAME</th>
                   <th className="text-left py-2 md:py-4 px-1 md:px-2">COLLEGE</th>
                   <th className="text-left py-2 md:py-4 px-1 md:px-2">ROLE</th>
@@ -1468,17 +1494,44 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         <div className="glass-card p-6 space-y-6">
           <h3 className="text-xl font-bold">System Activity</h3>
           <div className="space-y-6">
-            {filteredLogs.slice(0, 5).map((log, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="w-8 h-8 rounded-full bg-[var(--input-bg)] flex items-center justify-center text-[var(--text-muted)] shrink-0">
-                  {log.exitTimestamp ? <ArrowRight className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+            {(profile.role === 'admin' || profile.role === 'library officer') ? (
+              systemActivities.slice(0, 5).map((activity, i) => (
+                <div key={i} className="flex gap-4">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                    activity.type === 'entry' ? "bg-blue-500/10 text-blue-400" : 
+                    activity.type === 'exit' ? "bg-emerald-500/10 text-emerald-400" : 
+                    "bg-purple-500/10 text-purple-400"
+                  )}>
+                    {activity.type === 'entry' ? <Users className="w-4 h-4" /> : 
+                     activity.type === 'exit' ? <ArrowRight className="w-4 h-4" /> : 
+                     <Zap className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">
+                      {activity.type === 'entry' ? `${activity.actorName} entered the library` :
+                       activity.type === 'exit' ? `${activity.actorName} exited the library` :
+                       activity.details || activity.type}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {activity.timestamp?.toDate().toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-bold">{log.userName} {log.exitTimestamp ? 'exited' : 'entered'} the library</p>
-                  <p className="text-xs text-[var(--text-muted)]">{log.timestamp?.toDate().toLocaleString()}</p>
+              ))
+            ) : (
+              filteredLogs.slice(0, 5).map((log, i) => (
+                <div key={i} className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[var(--input-bg)] flex items-center justify-center text-[var(--text-muted)] shrink-0">
+                    {log.exitTimestamp ? <ArrowRight className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{log.userName} {log.exitTimestamp ? 'exited' : 'entered'} the library</p>
+                    <p className="text-xs text-[var(--text-muted)]">{log.timestamp?.toDate().toLocaleString()}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -2225,6 +2278,7 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
         name: user.displayName || 'Anonymous',
         college: college,
         studentId: studentId,
+        photoURL: user.photoURL || undefined,
       };
       
       if (!profile) {
@@ -2310,25 +2364,23 @@ function UserLogs({ profile }: { profile: UserProfile }) {
   const isStaff = isDirector || isOfficer;
 
   useEffect(() => {
-    const q = isDirector 
+    const q = isStaff 
       ? query(collection(db, 'system_activities'), orderBy('timestamp', 'desc'), limit(100))
-      : isOfficer 
-        ? query(collection(db, 'visitLogs'), orderBy('timestamp', 'desc'), limit(100))
-        : query(collection(db, 'visitLogs'), where('uid', '==', profile.uid), orderBy('timestamp', 'desc'), limit(100));
+      : query(collection(db, 'visitLogs'), where('uid', '==', profile.uid), orderBy('timestamp', 'desc'), limit(100));
 
     const unsubscribe = onSnapshot(q, (snap) => {
       setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, isDirector ? 'system_activities' : 'visitLogs');
+      handleFirestoreError(err, OperationType.LIST, isStaff ? 'system_activities' : 'visitLogs');
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [profile.uid, isDirector, isOfficer]);
+  }, [profile.uid, isStaff]);
 
   const activities = useMemo(() => {
-    if (!isDirector) {
+    if (!isStaff) {
       return logs.map(log => ({
         id: log.id,
         userName: log.userName,
@@ -2349,7 +2401,7 @@ function UserLogs({ profile }: { profile: UserProfile }) {
       college: activity.details?.includes('College') ? activity.details : 'System',
       actorName: activity.actorName
     }));
-  }, [logs, isDirector]);
+  }, [logs, isStaff]);
 
   return (
     <div className="space-y-6">
@@ -2708,6 +2760,24 @@ function SettingsSection({ profile, onUpdate }: { profile: UserProfile, onUpdate
     }
   };
 
+  const isGoogleUser = auth.currentUser?.providerData.some(p => p.providerId === 'google.com');
+
+  const handleResetPhoto = async () => {
+    if (auth.currentUser?.photoURL) {
+      try {
+        await setDoc(doc(db, 'users', profile.uid), {
+          photoURL: auth.currentUser.photoURL
+        }, { merge: true });
+        setPhotoURL(auth.currentUser.photoURL);
+        onUpdate();
+        alert('Photo reset to Google account photo!');
+      } catch (error) {
+        console.error('Error resetting photo:', error);
+        alert('Failed to reset photo.');
+      }
+    }
+  };
+
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle('dark');
     setDarkMode(!darkMode);
@@ -2743,15 +2813,20 @@ function SettingsSection({ profile, onUpdate }: { profile: UserProfile, onUpdate
       <div className="glass-card p-6 space-y-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500 overflow-hidden">
-            {photoURL ? <img src={photoURL} alt="Profile" className="w-full h-full object-cover" /> : <UserIcon className="w-8 h-8" />}
+            {photoURL ? <img src={photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <UserIcon className="w-8 h-8" />}
           </div>
           <div>
             <h3 className="font-bold text-lg">Edit Profile</h3>
             <p className="text-sm text-[var(--text-muted)]">Update your library visitor avatar</p>
             <input type="file" ref={fileInputRef} onChange={handlePhotoChange} className="hidden" accept="image/*" />
-            <button onClick={() => fileInputRef.current?.click()} className="text-sm text-blue-500 font-semibold hover:underline mt-1" disabled={isUploading}>
+            <button onClick={() => fileInputRef.current?.click()} className="text-sm text-blue-500 font-semibold hover:underline mt-1 block sm:inline" disabled={isUploading}>
               {isUploading ? 'Uploading...' : 'Change Photo'}
             </button>
+            {isGoogleUser && auth.currentUser?.photoURL && photoURL !== auth.currentUser.photoURL && (
+              <button onClick={handleResetPhoto} className="text-sm text-gray-500 font-semibold hover:underline mt-1 sm:ml-4 block sm:inline">
+                Reset to Google Photo
+              </button>
+            )}
           </div>
         </div>
 

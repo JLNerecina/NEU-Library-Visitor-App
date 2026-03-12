@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, COLLEGES } from '../types';
 import { Search, ShieldBan, ShieldCheck, Users, Edit2, Trash2, X } from 'lucide-react';
@@ -15,25 +15,20 @@ export default function UserManagement() {
   const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        setUsers(usersSnap.docs.map(d => d.data() as UserProfile));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUsers();
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setUsers(snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+      setLoading(false);
+    }, (err) => {
+      console.error(err);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
   const toggleBlock = async (userProfile: UserProfile) => {
     try {
       const userRef = doc(db, 'users', userProfile.uid);
       await updateDoc(userRef, { isBlocked: !userProfile.isBlocked });
-      setUsers(users.map(u => u.uid === userProfile.uid ? { ...u, isBlocked: !u.isBlocked } : u));
     } catch (err) {
       console.error(err);
     }
@@ -43,7 +38,6 @@ export default function UserManagement() {
     if (confirmingDelete === uid) {
       try {
         await deleteDoc(doc(db, 'users', uid));
-        setUsers(users.filter(u => u.uid !== uid));
         setConfirmingDelete(null);
       } catch (err) {
         console.error("Error deleting user:", err);
@@ -60,7 +54,6 @@ export default function UserManagement() {
     try {
       const userRef = doc(db, 'users', editingUser.uid);
       await updateDoc(userRef, editForm);
-      setUsers(users.map(u => u.uid === editingUser.uid ? { ...u, ...editForm } : u));
       setEditingUser(null);
     } catch (err) {
       console.error("Error updating user:", err);
@@ -123,8 +116,12 @@ export default function UserManagement() {
                 <tr key={u.uid} className="hover:bg-white/5 transition-colors">
                   <td className="px-3 py-3 md:px-6 md:py-4">
                     <div className="flex items-center gap-2 md:gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                        {u.name.charAt(0)}
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                        {u.photoURL ? (
+                          <img src={u.photoURL} alt={u.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          u.name.charAt(0)
+                        )}
                       </div>
                       <div className="min-w-0 max-w-[120px] md:max-w-none">
                         <p className="font-bold text-xs md:text-sm truncate">{u.name}</p>
