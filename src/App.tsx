@@ -846,10 +846,10 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute right-0 mt-2 w-80 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-2xl shadow-2xl z-50 overflow-hidden"
+              className="fixed sm:absolute top-[72px] sm:top-full left-6 right-6 sm:left-auto sm:right-0 sm:mt-2 sm:w-72 bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
             >
-              <div className="p-4 border-b border-[var(--glass-border)] flex items-center justify-between">
-                <h3 className="font-bold">Notifications</h3>
+              <div className="p-3 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                <h3 className="text-sm font-bold">Notifications</h3>
                 {unreadCount > 0 && (
                   <button 
                     onClick={markAllAsRead}
@@ -859,9 +859,9 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
                   </button>
                 )}
               </div>
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-[var(--text-muted)] text-sm">
+                  <div className="p-6 text-center text-[var(--text-muted)] text-xs">
                     No notifications yet
                   </div>
                 ) : (
@@ -870,19 +870,19 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
                       key={n.id}
                       onClick={() => markAsRead(n.id!)}
                       className={cn(
-                        "p-4 border-b border-[var(--glass-border)] last:border-0 cursor-pointer transition-colors",
-                        !n.isRead ? "bg-blue-500/5" : "hover:bg-white/5"
+                        "p-3 border-b border-gray-100 dark:border-white/5 last:border-0 cursor-pointer transition-colors",
+                        !n.isRead ? "bg-blue-500/10 dark:bg-blue-400/10" : "hover:bg-gray-50 dark:hover:bg-white/5"
                       )}
                     >
-                      <div className="flex gap-3">
+                      <div className="flex gap-2">
                         <div className={cn(
-                          "w-2 h-2 rounded-full mt-1.5 shrink-0",
-                          !n.isRead ? "bg-blue-500" : "bg-transparent"
+                          "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                          !n.isRead ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-transparent"
                         )} />
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold leading-tight">{n.title}</p>
-                          <p className="text-xs text-[var(--text-muted)] leading-relaxed">{n.message}</p>
-                          <p className="text-[10px] text-[var(--text-muted)]/50">
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold leading-tight">{n.title}</p>
+                          <p className="text-[11px] text-[var(--text-muted)] leading-tight">{n.message}</p>
+                          <p className="text-[9px] text-[var(--text-muted)]/50">
                             {n.timestamp?.toDate().toLocaleString()}
                           </p>
                         </div>
