@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -33,21 +33,27 @@ import {
   onSnapshot,
   runTransaction
 } from 'firebase/firestore';
-import { auth, db, googleProvider } from './firebase';
+import { auth, db, googleProvider, storage } from './firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   UserProfile, 
   VisitLog, 
+  AppNotification,
+  SystemActivity,
   COLLEGES, 
   REASONS, 
   ADMIN_EMAIL,
   OFFICER_EMAIL 
 } from './types';
 import { cn } from './lib/utils';
+import LibraryMap from './components/LibraryMap';
+import AdminAnalytics from './components/AdminAnalytics';
+import UserManagement from './components/UserManagement';
 import { 
   LogOut, 
-  LayoutDashboard, 
-  History, 
-  UserCircle, 
+  LayoutDashboard,
+  History,
+  UserCircle,
   ShieldAlert, 
   CheckCircle2, 
   Users, 
@@ -83,7 +89,12 @@ import {
   DoorOpen,
   DoorClosed,
   Clock,
-  Info
+  Info,
+  Database,
+  UserPlus,
+  Edit2,
+  X,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -138,14 +149,43 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+async function createNotification(recipientUid: string, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+  try {
+    await addDoc(collection(db, 'notifications'), {
+      recipientUid,
+      title,
+      message,
+      type,
+      timestamp: serverTimestamp(),
+      isRead: false
+    });
+  } catch (err) {
+    console.error("Error creating notification:", err);
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'admin' | 'logs'>('home');
+  const [view, setView] = useState<'home' | 'admin' | 'management' | 'logs' | 'map' | 'about' | 'settings'>('home');
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'verification-sent' | 'complete-profile'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
+
+  const logSystemActivity = async (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => {
+    if (!profile) return;
+    try {
+      await addDoc(collection(db, 'system_activities'), {
+        ...activity,
+        actorId: profile.uid,
+        actorName: profile.name,
+        timestamp: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error logging system activity:", err);
+    }
+  };
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -357,6 +397,13 @@ export default function App() {
       await setDoc(doc(db, 'users', user.uid), newProfile);
       setProfile(newProfile);
       setAuthMode('login');
+
+      await logSystemActivity({
+        type: 'add_user',
+        targetId: user.uid,
+        targetName: data.name,
+        details: `New user registered: ${data.name} (${data.studentId})`
+      });
     } catch (err: any) {
       setAuthError(err.message);
     }
@@ -449,6 +496,26 @@ export default function App() {
             <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 lg:pb-8">
               <div className="max-w-6xl mx-auto">
                 <AnimatePresence mode="wait">
+                  {view === 'admin' && (
+                    <motion.div
+                      key="admin"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                    >
+                      <AdminAnalytics />
+                    </motion.div>
+                  )}
+                  {view === 'management' && (
+                    <motion.div
+                      key="management"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                    >
+                      <UserManagement />
+                    </motion.div>
+                  )}
                   {view === 'home' && (
                     <motion.div
                       key="home"
@@ -457,9 +524,9 @@ export default function App() {
                       exit={{ opacity: 0, y: -20 }}
                     >
                       {profile.role === 'admin' || profile.role === 'library officer' ? (
-                        <LibraryOfficerDashboard profile={profile} />
+                        <LibraryOfficerDashboard profile={profile} logSystemActivity={logSystemActivity} />
                       ) : (
-                        <StudentDashboard profile={profile} onAction={fetchOccupancy} onViewAll={() => setView('logs')} />
+                        <StudentDashboard profile={profile} onAction={fetchOccupancy} onViewAll={() => setView('logs')} logSystemActivity={logSystemActivity} />
                       )}
                     </motion.div>
                   )}
@@ -483,11 +550,32 @@ export default function App() {
                       <AboutSection />
                     </motion.div>
                   )}
+                  {view === 'settings' && (
+                    <motion.div
+                      key="settings"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                    >
+                      <SettingsSection profile={profile} onUpdate={() => fetchProfile(profile.uid)} />
+                    </motion.div>
+                  )}
+                  {view === 'map' && (
+                    <motion.div
+                      key="map"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="h-full"
+                    >
+                      <LibraryMap />
+                    </motion.div>
+                  )}
                 </AnimatePresence>
               </div>
             </main>
           </div>
-          <MobileNav activeView={view} setView={setView} />
+          <MobileNav activeView={view} setView={setView} profile={profile} />
         </>
       )}
     </div>
@@ -528,11 +616,27 @@ function Sidebar({
           icon={<LayoutDashboard className="w-5 h-5" />} 
           label="Dashboard" 
         />
+        {profile.role === 'admin' && (
+          <>
+            <SidebarItem 
+              active={activeView === 'admin'} 
+              onClick={() => setView('admin')} 
+              icon={<FileText className="w-5 h-5" />} 
+              label="Admin Analytics" 
+            />
+            <SidebarItem 
+              active={activeView === 'management'} 
+              onClick={() => setView('management')} 
+              icon={<Users className="w-5 h-5" />} 
+              label="User Management" 
+            />
+          </>
+        )}
         <SidebarItem 
           active={activeView === 'logs'} 
           onClick={() => setView('logs')} 
           icon={<History className="w-5 h-5" />} 
-          label="Visit History" 
+          label={profile.role === 'admin' || profile.role === 'library officer' ? "System Activity" : "Visit History"} 
         />
         <SidebarItem 
           active={activeView === 'about'} 
@@ -542,13 +646,13 @@ function Sidebar({
         />
         <SidebarItem 
           active={activeView === 'map'} 
-          onClick={() => {}} 
+          onClick={() => setView('map')} 
           icon={<Map className="w-5 h-5" />} 
           label="Library Map" 
         />
         <SidebarItem 
           active={activeView === 'settings'} 
-          onClick={() => {}} 
+          onClick={() => setView('settings')} 
           icon={<Settings className="w-5 h-5" />} 
           label="Settings" 
         />
@@ -599,10 +703,12 @@ function SidebarItem({ active, onClick, icon, label }: { active: boolean, onClic
 
 function MobileNav({ 
   activeView, 
-  setView 
+  setView,
+  profile
 }: { 
   activeView: string, 
-  setView: (v: any) => void 
+  setView: (v: any) => void,
+  profile: UserProfile
 }) {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--glass-bg)] backdrop-blur-xl border-t border-[var(--glass-border)] z-50 pb-safe">
@@ -617,7 +723,7 @@ function MobileNav({
           active={activeView === 'logs'} 
           onClick={() => setView('logs')} 
           icon={<History className="w-6 h-6" />} 
-          label="History" 
+          label={profile.role === 'admin' || profile.role === 'library officer' ? "Activity" : "History"} 
         />
         <MobileNavItem 
           active={activeView === 'about'} 
@@ -627,7 +733,7 @@ function MobileNav({
         />
         <MobileNavItem 
           active={activeView === 'map'} 
-          onClick={() => {}} 
+          onClick={() => setView('map')} 
           icon={<Map className="w-6 h-6" />} 
           label="Map" 
         />
@@ -651,6 +757,120 @@ function MobileNavItem({ active, onClick, icon, label }: { active: boolean, onCl
   );
 }
 
+function NotificationBell({ profile }: { profile: UserProfile }) {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'notifications'),
+      where('recipientUid', '==', profile.uid),
+      orderBy('timestamp', 'desc'),
+      limit(20)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppNotification)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'notifications'));
+
+    return unsub;
+  }, [profile.uid]);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const markAsRead = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'notifications', id), { isRead: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `notifications/${id}`);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const batch = writeBatch(db);
+      notifications.filter(n => !n.isRead).forEach(n => {
+        batch.update(doc(db, 'notifications', n.id!), { isRead: true });
+      });
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'notifications');
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors relative"
+      >
+        <Bell className="w-5 h-5" />
+        {unreadCount > 0 && (
+          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-[var(--bg-color)]" />
+        )}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute right-0 mt-2 w-80 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-2xl shadow-2xl z-50 overflow-hidden"
+            >
+              <div className="p-4 border-b border-[var(--glass-border)] flex items-center justify-between">
+                <h3 className="font-bold">Notifications</h3>
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={markAllAsRead}
+                    className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-[var(--text-muted)] text-sm">
+                    No notifications yet
+                  </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div 
+                      key={n.id}
+                      onClick={() => markAsRead(n.id!)}
+                      className={cn(
+                        "p-4 border-b border-[var(--glass-border)] last:border-0 cursor-pointer transition-colors",
+                        !n.isRead ? "bg-blue-500/5" : "hover:bg-white/5"
+                      )}
+                    >
+                      <div className="flex gap-3">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full mt-1.5 shrink-0",
+                          !n.isRead ? "bg-blue-500" : "bg-transparent"
+                        )} />
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold leading-tight">{n.title}</p>
+                          <p className="text-xs text-[var(--text-muted)] leading-relaxed">{n.message}</p>
+                          <p className="text-[10px] text-[var(--text-muted)]/50">
+                            {n.timestamp?.toDate().toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfile, theme: string, toggleTheme: () => void, onLogout: () => void }) {
   return (
     <header className="w-full bg-[var(--glass-bg)]/50 backdrop-blur-md border-b border-[var(--glass-border)] px-4 md:px-8 py-4 flex items-center justify-between z-40">
@@ -669,10 +889,7 @@ function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfil
           >
             {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
           </button>
-          <button className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors relative hidden sm:block">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-[var(--bg-color)]" />
-          </button>
+          <NotificationBell profile={profile} />
         </div>
 
         <div className="h-8 w-px bg-[var(--glass-border)] hidden sm:block" />
@@ -720,21 +937,90 @@ function LibraryCapacity({ occupancy, capacity }: { occupancy: number, capacity:
   );
 }
 
-function LibraryOfficerDashboard({ profile }: { profile: UserProfile }) {
+function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: UserProfile, logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
   const [occupancy, setOccupancy] = useState(0);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<VisitLog[]>([]);
   const [isBulkDeleteMode, setIsBulkDeleteMode] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', college: COLLEGES[0], studentId: '', role: 'user' as UserProfile['role'] });
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+    
+    try {
+      if (isAddingUser) {
+        // For manual add, we'd normally need a UID from Auth, but for this app's logic, 
+        // we'll just create a doc. In a real app, you'd use Firebase Admin or a cloud function.
+        // For this demo, we'll use a random ID.
+        const tempUid = `manual-${Date.now()}`;
+        const newUser: UserProfile = {
+          uid: tempUid,
+          email: newUserForm.email,
+          name: newUserForm.name,
+          college: newUserForm.college,
+          studentId: newUserForm.studentId,
+          isBlocked: false,
+          role: newUserForm.role
+        };
+        await setDoc(doc(db, 'users', tempUid), newUser);
+        await createNotification(profile.uid, 'User Added', `Successfully added user: ${newUser.name}`, 'success');
+        await logSystemActivity({
+          type: 'add_user',
+          targetId: tempUid,
+          targetName: newUser.name,
+          details: `Manually added user: ${newUser.name}`
+        });
+      } else if (editingUser) {
+        await updateDoc(doc(db, 'users', editingUser.uid), {
+          name: newUserForm.name,
+          college: newUserForm.college,
+          studentId: newUserForm.studentId,
+          role: newUserForm.role
+        });
+        await createNotification(profile.uid, 'User Updated', `Successfully updated user: ${newUserForm.name}`, 'success');
+        await logSystemActivity({
+          type: 'edit_user',
+          targetId: editingUser.uid,
+          targetName: newUserForm.name,
+          details: `Updated user details for: ${newUserForm.name}`
+        });
+      }
+      setIsAddingUser(false);
+      setEditingUser(null);
+      setNewUserForm({ name: '', email: '', college: COLLEGES[0], studentId: '', role: 'user' });
+    } catch (err) {
+      console.error("Error saving user:", err);
+    }
+  };
+
+  const openEditModal = (user: UserProfile) => {
+    setEditingUser(user);
+    setNewUserForm({
+      name: user.name,
+      email: user.email,
+      college: user.college,
+      studentId: user.studentId || '',
+      role: user.role || 'user'
+    });
+    setIsAddingUser(false);
+  };
+
+  const openAddModal = () => {
+    setIsAddingUser(true);
+    setEditingUser(null);
+    setNewUserForm({ name: '', email: '', college: COLLEGES[0], studentId: '', role: 'user' });
+  };
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   useEffect(() => {
-    getDoc(doc(db, 'stats', 'library')).then(doc => {
-      console.log("Stats doc:", doc.data());
-    }).catch(err => {
-      console.error("Error fetching stats:", err);
-    });
-
     const unsubStats = onSnapshot(doc(db, 'stats', 'library'), (doc) => {
       setOccupancy(doc.data()?.occupancy || 0);
     }, (err) => handleFirestoreError(err, OperationType.GET, 'stats/library'));
@@ -763,22 +1049,156 @@ function LibraryOfficerDashboard({ profile }: { profile: UserProfile }) {
   }, []);
 
   const handleBlockToggle = async (user: UserProfile) => {
-    await updateDoc(doc(db, 'users', user.uid), { isBlocked: !user.isBlocked });
+    try {
+      const newStatus = !user.isBlocked;
+      await updateDoc(doc(db, 'users', user.uid), { isBlocked: newStatus });
+      
+      await createNotification(
+        profile.uid,
+        `User ${newStatus ? 'Blocked' : 'Unblocked'}`,
+        `Successfully ${newStatus ? 'blocked' : 'unblocked'} ${user.name}.`,
+        newStatus ? 'warning' : 'success'
+      );
+
+      await logSystemActivity({
+        type: newStatus ? 'block_user' : 'unblock_user',
+        targetId: user.uid,
+        targetName: user.name,
+        details: `${newStatus ? 'Blocked' : 'Unblocked'} user account`
+      });
+    } catch (err) {
+      console.error("Error toggling block:", err);
+    }
   };
 
   const handleDelete = async (uid: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      await deleteDoc(doc(db, 'users', uid));
+    if (confirmingDelete !== uid) {
+      setConfirmingDelete(uid);
+      setTimeout(() => setConfirmingDelete(null), 3000);
+      return;
+    }
+    
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', uid));
+      
+      const q = query(collection(db, 'visitLogs'), where('uid', '==', uid));
+      const snap = await getDocs(q);
+      let activeVisits = 0;
+      snap.docs.forEach(d => {
+        if (!d.data().exitTimestamp) activeVisits++;
+        batch.delete(d.ref);
+      });
+      
+      if (activeVisits > 0) {
+        const statsRef = doc(db, 'stats', 'library');
+        batch.update(statsRef, { occupancy: increment(-activeVisits) });
+      }
+      
+      await batch.commit();
+
+      await createNotification(
+        profile.uid,
+        'User Deleted',
+        `Successfully deleted user and their associated logs.`,
+        'warning'
+      );
+
+      await logSystemActivity({
+        type: 'delete_user',
+        targetId: uid,
+        details: 'Deleted user and all associated visit logs'
+      });
+
+      setConfirmingDelete(null);
+    } catch (err) {
+      console.error("Error deleting user:", err);
+    }
+  };
+
+  const clearExampleData = async () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true);
+      setTimeout(() => setConfirmingClear(false), 3000);
+      return;
+    }
+
+    setIsSeeding(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // Delete non-admin users
+      users.forEach(u => {
+        if (u.uid !== profile.uid) {
+          batch.delete(doc(db, 'users', u.uid));
+        }
+      });
+
+      // Delete all logs
+      logs.forEach(l => {
+        batch.delete(doc(db, 'visitLogs', l.id));
+      });
+
+      // Reset occupancy
+      const statsRef = doc(db, 'stats', 'library');
+      batch.set(statsRef, { occupancy: 0 }, { merge: true });
+
+      await batch.commit();
+      setConfirmingClear(false);
+
+      await logSystemActivity({
+        type: 'delete_user',
+        details: 'Cleared all users and visit logs from database'
+      });
+    } catch (err) {
+      console.error("Error clearing data:", err);
+    } finally {
+      setIsSeeding(false);
     }
   };
 
   const handleBulkDelete = async () => {
-    if (confirm(`Are you sure you want to delete ${selectedUsers.size} users?`)) {
+    setIsSeeding(true);
+    try {
       const batch = writeBatch(db);
-      selectedUsers.forEach(uid => batch.delete(doc(db, 'users', uid)));
+      let totalActiveVisitsToRemove = 0;
+      
+      // We need to delete logs for each user too
+      for (const uid of selectedUsers) {
+        batch.delete(doc(db, 'users', uid));
+        const q = query(collection(db, 'visitLogs'), where('uid', '==', uid));
+        const snap = await getDocs(q);
+        snap.docs.forEach(d => {
+          if (!d.data().exitTimestamp) totalActiveVisitsToRemove++;
+          batch.delete(d.ref);
+        });
+      }
+
+      if (totalActiveVisitsToRemove > 0) {
+        const statsRef = doc(db, 'stats', 'library');
+        batch.update(statsRef, { occupancy: increment(-totalActiveVisitsToRemove) });
+      }
+      
       await batch.commit();
+
+      await createNotification(
+        profile.uid,
+        'Bulk Delete Successful',
+        `Successfully deleted ${selectedUsers.size} users and their logs.`,
+        'warning'
+      );
+
+      await logSystemActivity({
+        type: 'delete_user',
+        details: `Bulk deleted ${selectedUsers.size} users and all their associated visit logs`
+      });
+
       setSelectedUsers(new Set());
       setIsBulkDeleteMode(false);
+    } catch (err) {
+      console.error("Error in bulk delete:", err);
+    } finally {
+      setIsSeeding(false);
     }
   };
 
@@ -794,25 +1214,152 @@ function LibraryOfficerDashboard({ profile }: { profile: UserProfile }) {
     l.reason.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const seedExampleData = async () => {
+    setIsSeeding(true);
+    try {
+      const batch = writeBatch(db);
+      
+      const sampleUsers = [
+        { uid: 'sample-1', name: 'Alice Johnson', email: 'alice@neu.edu.ph', college: 'College of Engineering', studentId: '2021-0001', isBlocked: false, role: 'user' },
+        { uid: 'sample-2', name: 'Bob Smith', email: 'bob@neu.edu.ph', college: 'College of Business', studentId: '2021-0002', isBlocked: false, role: 'user' },
+        { uid: 'sample-3', name: 'Charlie Brown', email: 'charlie@neu.edu.ph', college: 'College of Arts', studentId: '2021-0003', isBlocked: true, role: 'user' },
+        { uid: 'sample-4', name: 'Diana Prince', email: 'diana@neu.edu.ph', college: 'College of Science', studentId: '2021-0004', isBlocked: false, role: 'user' },
+      ];
+
+      sampleUsers.forEach(u => {
+        batch.set(doc(db, 'users', u.uid), u);
+      });
+
+      const sampleLogs = [
+        { uid: 'sample-1', userName: 'Alice Johnson', college: 'College of Engineering', reason: 'Research', timestamp: serverTimestamp() },
+        { uid: 'sample-2', userName: 'Bob Smith', college: 'College of Business', reason: 'Study', timestamp: serverTimestamp(), exitTimestamp: serverTimestamp() },
+        { uid: 'sample-4', userName: 'Diana Prince', college: 'College of Science', reason: 'Group Work', timestamp: serverTimestamp() },
+      ];
+
+      sampleLogs.forEach(l => {
+        const logRef = doc(collection(db, 'visitLogs'));
+        batch.set(logRef, l);
+      });
+
+      const activeCount = sampleLogs.filter(l => !l.exitTimestamp).length;
+      const statsRef = doc(db, 'stats', 'library');
+      batch.set(statsRef, { occupancy: activeCount }, { merge: true });
+
+      await batch.commit();
+      console.log('Example data seeded successfully!');
+
+      await logSystemActivity({
+        type: 'add_user',
+        details: 'Seeded example data (Users and Visit Logs)'
+      });
+    } catch (err) {
+      console.error("Error seeding data:", err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const recalculateOccupancy = async () => {
+    setIsSeeding(true);
+    try {
+      const q = query(collection(db, 'visitLogs'), where('exitTimestamp', '==', null));
+      const snap = await getDocs(q);
+      const actualOccupancy = snap.size;
+      
+      const statsRef = doc(db, 'stats', 'library');
+      await updateDoc(statsRef, { occupancy: actualOccupancy });
+    } catch (err) {
+      console.error("Error recalculating occupancy:", err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-        <input 
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search visitors, records, or logs..."
-          className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-        />
+      {/* Search Bar & Actions */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+          <input 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search visitors, records, or logs..."
+            className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={openAddModal}
+            className="px-6 py-4 bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 rounded-2xl font-bold text-sm hover:bg-emerald-600/20 transition-all flex items-center justify-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" /> 
+            Add User
+          </button>
+          <button 
+            onClick={recalculateOccupancy}
+            disabled={isSeeding}
+            title="Sync Occupancy"
+            className="p-4 border border-white/10 rounded-2xl hover:bg-white/5 transition-all text-[var(--text-muted)]"
+          >
+            <RefreshCw className={cn("w-5 h-5", isSeeding && "animate-spin")} />
+          </button>
+          <button 
+            onClick={seedExampleData}
+            disabled={isSeeding}
+            className={cn(
+              "px-6 py-4 border rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2",
+              isSeeding 
+                ? "bg-gray-500/10 text-gray-400 border-gray-500/20 cursor-not-allowed" 
+                : "bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600/20"
+            )}
+          >
+            <Zap className={cn("w-4 h-4", isSeeding && "animate-pulse")} /> 
+            {isSeeding ? 'Processing...' : 'Seed Data'}
+          </button>
+          <button 
+            onClick={clearExampleData}
+            disabled={isSeeding}
+            className={cn(
+              "px-6 py-4 border rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2",
+              isSeeding 
+                ? "bg-gray-500/10 text-gray-400 border-gray-500/20 cursor-not-allowed" 
+                : confirmingClear
+                  ? "bg-red-600 text-white border-red-600 animate-pulse"
+                  : "bg-red-600/10 text-red-400 border-red-500/20 hover:bg-red-600/20"
+            )}
+          >
+            <Trash2 className="w-4 h-4" /> 
+            {confirmingClear ? 'Click again to confirm' : 'Clear Data'}
+          </button>
+        </div>
       </div>
+
+      {users.length === 0 && !isSeeding && (
+        <div className="glass-card p-12 text-center space-y-4 border-dashed border-2 border-blue-500/30">
+          <Database className="w-12 h-12 text-blue-500 mx-auto opacity-50" />
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold">Database is Empty</h3>
+            <p className="text-sm text-[var(--text-muted)] max-w-md mx-auto">
+              It looks like you don't have any visitors yet. Click the button above or below to populate the system with sample data for testing.
+            </p>
+          </div>
+          <button 
+            onClick={seedExampleData}
+            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20"
+          >
+            Populate Sample Data
+          </button>
+        </div>
+      )}
 
       <h2 className="text-2xl font-bold mb-4">{profile.role === 'admin' ? 'Library Director' : 'Library Officer'} Dashboard</h2>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard icon={<Users className="w-6 h-6" />} label="Today's Visitors" value={logs.filter(l => l.timestamp?.toDate().toDateString() === new Date().toDateString()).length} />
+        <StatCard icon={<DoorOpen className="w-6 h-6" />} label="Current Occupancy" value={occupancy} />
         <StatCard icon={<Calendar className="w-6 h-6" />} label="Weekly Total" value={logs.length} />
         <StatCard icon={<Zap className="w-6 h-6" />} label="Active Users" value={users.filter(u => !u.isBlocked).length} />
       </div>
@@ -842,6 +1389,7 @@ function LibraryOfficerDashboard({ profile }: { profile: UserProfile }) {
                   {isBulkDeleteMode && <th className="py-4 px-2"><input type="checkbox" checked={selectedUsers.size === users.length} onChange={(e) => setSelectedUsers(e.target.checked ? new Set(users.map(u => u.uid)) : new Set())} /></th>}
                   <th className="text-left py-4 px-2">USER NAME</th>
                   <th className="text-left py-4 px-2">COLLEGE</th>
+                  <th className="text-left py-4 px-2">ROLE</th>
                   <th className="text-left py-4 px-2">STATUS</th>
                   <th className="text-left py-4 px-2">ACTIONS</th>
                 </tr>
@@ -858,14 +1406,31 @@ function LibraryOfficerDashboard({ profile }: { profile: UserProfile }) {
                     </td>
                     <td className="py-4 px-2 text-[var(--text-muted)]">{user.college}</td>
                     <td className="py-4 px-2">
+                      <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-full text-xs font-bold capitalize">
+                        {user.role || 'user'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-2">
                       <span className={cn("px-2 py-1 rounded-full text-xs font-bold", !user.isBlocked ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
                         ● {user.isBlocked ? 'Blocked' : 'Active'}
                       </span>
                     </td>
                     <td className="py-4 px-2 text-blue-400 font-bold cursor-pointer hover:underline">
                       <div className="flex gap-2">
+                        <button 
+                          onClick={() => openEditModal(user)}
+                          className="p-2 hover:bg-white/10 rounded-lg text-[var(--text-muted)] hover:text-blue-400 transition-colors"
+                          title="Edit User"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                         <button onClick={() => handleBlockToggle(user)}>{user.isBlocked ? 'Unblock' : 'Block'}</button>
-                        <button onClick={() => handleDelete(user.uid)} className="text-red-400">Delete</button>
+                        <button 
+                          onClick={() => handleDelete(user.uid)} 
+                          className={cn("transition-colors", confirmingDelete === user.uid ? "text-white bg-red-600 px-2 rounded" : "text-red-400")}
+                        >
+                          {confirmingDelete === user.uid ? 'Confirm?' : 'Delete'}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -893,11 +1458,101 @@ function LibraryOfficerDashboard({ profile }: { profile: UserProfile }) {
           </div>
         </div>
       </div>
+
+      {/* Add/Edit User Modal */}
+      {(isAddingUser || editingUser) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-card w-full max-w-md p-8 space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold">{isAddingUser ? 'Add New User' : 'Edit User'}</h3>
+              <button onClick={() => { setIsAddingUser(false); setEditingUser(null); }} className="p-2 hover:bg-white/10 rounded-full">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Full Name</label>
+                <input 
+                  required
+                  type="text"
+                  value={newUserForm.name}
+                  onChange={e => setNewUserForm({...newUserForm, name: e.target.value})}
+                  className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Email Address</label>
+                <input 
+                  required
+                  disabled={!!editingUser}
+                  type="email"
+                  value={newUserForm.email}
+                  onChange={e => setNewUserForm({...newUserForm, email: e.target.value})}
+                  className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">College</label>
+                  <select 
+                    value={newUserForm.college}
+                    onChange={e => setNewUserForm({...newUserForm, college: e.target.value})}
+                    className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[var(--text-main)]"
+                  >
+                    {COLLEGES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Role</label>
+                  <select 
+                    value={newUserForm.role}
+                    onChange={e => setNewUserForm({...newUserForm, role: e.target.value as any})}
+                    className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[var(--text-main)]"
+                    disabled={profile.role === 'library officer'}
+                  >
+                    <option value="user" className="text-black">Student</option>
+                    {profile.role === 'admin' && (
+                      <>
+                        <option value="library officer" className="text-black">Library Officer</option>
+                        <option value="admin" className="text-black">Admin</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Student ID (Optional)</label>
+                <input 
+                  type="text"
+                  value={newUserForm.studentId}
+                  onChange={e => setNewUserForm({...newUserForm, studentId: e.target.value})}
+                  className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
+              >
+                {isAddingUser ? 'Create User' : 'Save Changes'}
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
 
-function StudentDashboard({ profile, onAction, onViewAll }: { profile: UserProfile, onAction: () => void, onViewAll: () => void }) {
+function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: { profile: UserProfile, onAction: () => void, onViewAll: () => void, logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
   const [logs, setLogs] = useState<VisitLog[]>([]);
   const [stats, setStats] = useState({ total: 0 });
   const [activeVisit, setActiveVisit] = useState<VisitLog | null>(null);
@@ -960,6 +1615,20 @@ function StudentDashboard({ profile, onAction, onViewAll }: { profile: UserProfi
     try {
       await updateDoc(doc(db, 'visitLogs', activeVisit.id), {
         exitTimestamp: serverTimestamp()
+      });
+
+      await createNotification(
+        profile.uid, 
+        'Exit Logged', 
+        'You have successfully logged your exit. Thank you for visiting!', 
+        'success'
+      );
+
+      await logSystemActivity({
+        type: 'exit',
+        targetId: profile.uid,
+        targetName: profile.name,
+        details: 'Logged out from library'
       });
 
       // Decrement global occupancy, ensuring it doesn't go below 0
@@ -1071,11 +1740,11 @@ function StudentDashboard({ profile, onAction, onViewAll }: { profile: UserProfi
             <button className="text-xs font-bold text-blue-500 hover:underline">Choose a purpose</button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-            <PurposeCard icon={<Search className="w-6 h-6" />} label="Research" reason="Research" profile={profile} onSuccess={fetchData} />
-            <PurposeCard icon={<BookOpen className="w-6 h-6" />} label="Self-Study" reason="Study" profile={profile} onSuccess={fetchData} />
-            <PurposeCard icon={<Users className="w-6 h-6" />} label="Group Work" reason="Group Work" profile={profile} onSuccess={fetchData} />
-            <PurposeCard icon={<Truck className="w-6 h-6" />} label="Book Pickup" reason="Borrowing Books" profile={profile} onSuccess={fetchData} />
-            <PurposeCard icon={<Coffee className="w-6 h-6" />} label="Social" reason="Other" profile={profile} onSuccess={fetchData} />
+            <PurposeCard icon={<Search className="w-6 h-6" />} label="Research" reason="Research" profile={profile} onSuccess={fetchData} logSystemActivity={logSystemActivity} />
+            <PurposeCard icon={<BookOpen className="w-6 h-6" />} label="Self-Study" reason="Study" profile={profile} onSuccess={fetchData} logSystemActivity={logSystemActivity} />
+            <PurposeCard icon={<Users className="w-6 h-6" />} label="Group Work" reason="Group Work" profile={profile} onSuccess={fetchData} logSystemActivity={logSystemActivity} />
+            <PurposeCard icon={<Truck className="w-6 h-6" />} label="Book Pickup" reason="Borrowing Books" profile={profile} onSuccess={fetchData} logSystemActivity={logSystemActivity} />
+            <PurposeCard icon={<Coffee className="w-6 h-6" />} label="Social" reason="Other" profile={profile} onSuccess={fetchData} logSystemActivity={logSystemActivity} />
           </div>
         </section>
       )}
@@ -1151,7 +1820,14 @@ function StudentDashboard({ profile, onAction, onViewAll }: { profile: UserProfi
   );
 }
 
-function PurposeCard({ icon, label, reason, profile, onSuccess }: { icon: React.ReactNode, label: string, reason: string, profile: UserProfile, onSuccess: () => void }) {
+function PurposeCard({ icon, label, reason, profile, onSuccess, logSystemActivity }: { 
+  icon: React.ReactNode, 
+  label: string, 
+  reason: string, 
+  profile: UserProfile, 
+  onSuccess: () => void,
+  logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void>
+}) {
   const [submitting, setSubmitting] = useState(false);
   
   const handleLog = async () => {
@@ -1165,6 +1841,20 @@ function PurposeCard({ icon, label, reason, profile, onSuccess }: { icon: React.
         timestamp: serverTimestamp(),
         exitTimestamp: null
       });
+
+      await createNotification(
+        profile.uid, 
+        'Visit Logged', 
+        `You have successfully entered the library for: ${reason}.`, 
+        'success'
+      );
+
+      await logSystemActivity({
+        type: 'entry',
+        targetId: profile.uid,
+        targetName: profile.name,
+        details: `Entered for: ${reason}`
+      });
       
       // Increment global occupancy, ensuring it starts from at least 0
       const statsRef = doc(db, 'stats', 'library');
@@ -1174,7 +1864,7 @@ function PurposeCard({ icon, label, reason, profile, onSuccess }: { icon: React.
           transaction.set(statsRef, { occupancy: 1 });
         } else {
           const currentOccupancy = Math.max(0, sfDoc.data().occupancy || 0);
-          transaction.update(statsRef, { occupancy: currentOccupancy + 1 });
+          transaction.update(statsRef, { occupancy: Math.max(0, currentOccupancy + 1) });
         }
       });
 
@@ -1580,328 +2270,141 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
 }
 
 function UserLogs({ profile }: { profile: UserProfile }) {
-  const [logs, setLogs] = useState<VisitLog[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const isDirector = profile.role === 'admin';
+  const isOfficer = profile.role === 'library officer';
+  const isStaff = isDirector || isOfficer;
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      const q = query(
-        collection(db, 'visitLogs'), 
-        where('uid', '==', profile.uid),
-        limit(50)
-      );
-      const querySnapshot = await getDocs(q);
-      const logsData = querySnapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-        .sort((a: any, b: any) => b.timestamp?.toMillis() - a.timestamp?.toMillis()) as VisitLog[];
-      setLogs(logsData);
+    const q = isDirector 
+      ? query(collection(db, 'system_activities'), orderBy('timestamp', 'desc'), limit(100))
+      : isOfficer 
+        ? query(collection(db, 'visitLogs'), orderBy('timestamp', 'desc'), limit(100))
+        : query(collection(db, 'visitLogs'), where('uid', '==', profile.uid), orderBy('timestamp', 'desc'), limit(100));
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
-    };
-    fetchLogs();
-  }, [profile.uid]);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, isDirector ? 'system_activities' : 'visitLogs');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile.uid, isDirector, isOfficer]);
+
+  const activities = useMemo(() => {
+    if (!isDirector) {
+      return logs.map(log => ({
+        id: log.id,
+        userName: log.userName,
+        type: 'entry',
+        time: log.timestamp,
+        reason: log.reason,
+        college: log.college,
+        isCompleted: !!log.exitTimestamp
+      }));
+    }
+
+    return logs.map(activity => ({
+      id: activity.id,
+      userName: activity.targetName || activity.actorName,
+      type: activity.type,
+      time: activity.timestamp,
+      reason: activity.details || activity.type.replace('_', ' '),
+      college: activity.details?.includes('College') ? activity.details : 'System',
+      actorName: activity.actorName
+    }));
+  }, [logs, isDirector]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Visit History</h2>
+        <h2 className="text-2xl font-bold">{isDirector ? 'System Activity' : 'Visit History'}</h2>
         <div className="px-3 py-1 bg-[var(--input-bg)] rounded-full text-xs font-bold text-[var(--text-muted)]">
-          Last 50 entries
+          {isDirector ? 'Last 100 activities' : 'Last 100 entries'}
         </div>
       </div>
 
       <div className="space-y-3">
         {loading ? (
           <div className="text-center py-12 text-[var(--text-muted)]">Loading history...</div>
-        ) : logs.length === 0 ? (
+        ) : activities.length === 0 ? (
           <div className="glass-card p-12 text-center text-[var(--text-muted)]">
-            No visits logged yet.
+            No activities logged yet.
           </div>
         ) : (
-          logs.map((log, idx) => (
+          activities.map((activity, idx) => (
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.05 }}
-              key={log.id} 
+              key={activity.id} 
               className="glass-card p-4 flex items-center justify-between group hover:bg-white/10 transition-colors"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-                  {log.reason === 'Research' ? <Search className="w-5 h-5" /> : 
-                   log.reason === 'Study' ? <BookOpen className="w-5 h-5" /> : 
-                   log.reason === 'Borrowing Books' ? <Truck className="w-5 h-5" /> : 
-                   <Library className="w-5 h-5" />}
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center",
+                  activity.type === 'entry' ? "bg-blue-500/10 text-blue-400" : 
+                  activity.type === 'exit' ? "bg-emerald-500/10 text-emerald-400" : 
+                  activity.type.includes('delete') ? "bg-red-500/10 text-red-400" :
+                  activity.type.includes('block') ? "bg-orange-500/10 text-orange-400" :
+                  "bg-purple-500/10 text-purple-400"
+                )}>
+                  {activity.type === 'entry' ? <DoorOpen className="w-5 h-5" /> : 
+                   activity.type === 'exit' ? <DoorClosed className="w-5 h-5" /> : 
+                   activity.type.includes('delete') ? <Trash2 className="w-5 h-5" /> :
+                   activity.type.includes('block') ? <ShieldAlert className="w-5 h-5" /> :
+                   <UserPlus className="w-5 h-5" />}
                 </div>
                 <div>
-                  <p className="font-bold">{log.reason}</p>
+                  <p className="font-bold">
+                    {isStaff ? (activity.targetName || activity.userName) : activity.reason}
+                  </p>
                   <p className="text-xs text-[var(--text-muted)]">
-                    {log.timestamp?.toDate().toLocaleString() || 'Just now'}
-                    {log.exitTimestamp && ` - Exit: ${log.exitTimestamp.toDate().toLocaleTimeString()}`}
+                    {isStaff ? (
+                      <>
+                        <span className={cn(
+                          "font-semibold",
+                          activity.type === 'entry' ? "text-blue-400" : 
+                          activity.type === 'exit' ? "text-emerald-400" : 
+                          "text-purple-400"
+                        )}>
+                          {activity.type.replace('_', ' ').toUpperCase()}
+                        </span>
+                        {" • "}
+                        {activity.reason}
+                        {" • "}
+                        {activity.time?.toDate().toLocaleString() || 'Just now'}
+                        {activity.actorName && ` • By: ${activity.actorName}`}
+                      </>
+                    ) : (
+                      <>
+                        {activity.time?.toDate().toLocaleString() || 'Just now'}
+                        {activity.exitTime && ` - Exit: ${activity.exitTime.toDate().toLocaleTimeString()}`}
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Status</p>
+                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                    {isStaff ? 'Category' : 'Status'}
+                  </p>
                   <p className={cn(
                     "text-sm font-semibold",
-                    log.exitTimestamp ? "text-emerald-500" : "text-blue-500"
+                    isStaff ? "text-[var(--text-main)]" : (activity.isCompleted ? "text-emerald-500" : "text-blue-500")
                   )}>
-                    {log.exitTimestamp ? 'Completed' : 'Inside'}
+                    {isStaff ? (activity.type.includes('user') ? 'Admin' : 'Visit') : (activity.isCompleted ? 'Completed' : 'Inside')}
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-[var(--text-muted)]/20 group-hover:text-[var(--text-muted)]/50 transition-colors" />
-              </div>
-            </motion.div>
+              </div>            </motion.div>
           ))
         )}
       </div>
-    </div>
-  );
-}
-
-function AdminDashboard() {
-  const [stats, setStats] = useState({ today: 0, week: 0, month: 0, currentlyIn: 0 });
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [currentVisitors, setCurrentVisitors] = useState<VisitLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [adminView, setAdminView] = useState<'users' | 'current'>('current');
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Fetch users
-        const usersSnap = await getDocs(collection(db, 'users'));
-        setUsers(usersSnap.docs.map(d => d.data() as UserProfile));
-
-        // Stats
-        const now = new Date();
-        const startOfDay = new Date(now.setHours(0,0,0,0));
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-        const logsRef = collection(db, 'visitLogs');
-        
-        // 1. Fetch all active logs (no exit timestamp)
-        const activeQ = query(logsRef, where('exitTimestamp', '==', null));
-        const activeSnap = await getDocs(activeQ);
-        const activeLogs = activeSnap.docs.map(d => ({ id: d.id, ...d.data() } as VisitLog));
-
-        // 2. Fetch logs for stats (month)
-        const monthQ = query(logsRef, where('timestamp', '>=', Timestamp.fromDate(startOfMonth)));
-        const monthSnap = await getDocs(monthQ);
-        const monthLogs = monthSnap.docs.map(d => ({ id: d.id, ...d.data() } as VisitLog));
-
-        const todayLogs = monthLogs.filter(log => log.timestamp?.toDate() >= startOfDay);
-        const weekLogs = monthLogs.filter(log => log.timestamp?.toDate() >= startOfWeek);
-
-        setStats({
-          today: todayLogs.length,
-          week: weekLogs.length,
-          month: monthLogs.length,
-          currentlyIn: activeLogs.length
-        });
-
-        setCurrentVisitors(activeLogs);
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const toggleBlock = async (userProfile: UserProfile) => {
-    try {
-      const userRef = doc(db, 'users', userProfile.uid);
-      await updateDoc(userRef, { isBlocked: !userProfile.isBlocked });
-      setUsers(users.map(u => u.uid === userProfile.uid ? { ...u, isBlocked: !u.isBlocked } : u));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.college.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  if (error) {
-    return (
-      <div className="glass-card p-12 border-red-500/20 bg-red-500/5 text-center space-y-6">
-        <ShieldAlert className="w-16 h-16 text-red-500 mx-auto" />
-        <div className="space-y-2">
-          <h3 className="text-2xl font-bold">Access Denied</h3>
-          <p className="text-[var(--text-muted)] max-w-md mx-auto">
-            We encountered a permission error while fetching dashboard data. 
-            This usually happens if your account doesn't have admin privileges in Firestore.
-          </p>
-          <div className="p-4 bg-black/20 rounded-xl text-xs font-mono text-red-400 mt-4 break-all">
-            {error}
-          </div>
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-red-600/20"
-        >
-          Retry Connection
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={<DoorOpen className="text-blue-400" />} label="Currently In" value={stats.currentlyIn} />
-        <StatCard icon={<Users className="text-emerald-400" />} label="Today's Total" value={stats.today} />
-        <StatCard icon={<Calendar className="text-purple-400" />} label="This Week" value={stats.week} />
-        <StatCard icon={<History className="text-orange-400" />} label="This Month" value={stats.month} />
-      </div>
-
-      <div className="flex items-center gap-2 p-1 bg-[var(--input-bg)] rounded-xl w-fit">
-        <button 
-          onClick={() => setAdminView('current')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-            adminView === 'current' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-          )}
-        >
-          Live Monitoring
-        </button>
-        <button 
-          onClick={() => setAdminView('users')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-            adminView === 'users' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-          )}
-        >
-          User Management
-        </button>
-      </div>
-
-      {adminView === 'current' ? (
-        <div className="glass-card overflow-hidden">
-          <div className="p-6 border-b border-white/10">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <DoorOpen className="w-6 h-6 text-blue-400" />
-              Currently in Library
-            </h3>
-          </div>
-          <div className="p-6">
-            {loading ? (
-              <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
-            ) : currentVisitors.length === 0 ? (
-              <div className="text-center py-12 text-[var(--text-muted)]">No students currently in the library.</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {currentVisitors.map(visitor => (
-                  <div key={visitor.id} className="p-4 bg-[var(--input-bg)] border border-white/5 rounded-2xl flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 font-bold">
-                      {visitor.userName.charAt(0)}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-sm">{visitor.userName}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase">{visitor.college}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-blue-400">{visitor.reason}</p>
-                      <p className="text-[10px] text-[var(--text-muted)]">Since {visitor.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="glass-card overflow-hidden">
-          <div className="p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <Users className="w-6 h-6 text-blue-400" />
-              User Management
-            </h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-              <input 
-                type="text" 
-                placeholder="Search users..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-[var(--input-bg)] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full sm:w-64"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[var(--input-bg)] text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                <tr>
-                  <th className="px-6 py-4">User</th>
-                  <th className="px-6 py-4">College</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {loading ? (
-                  <tr><td colSpan={4} className="px-6 py-12 text-center text-[var(--text-muted)]">Loading users...</td></tr>
-                ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan={4} className="px-6 py-12 text-center text-[var(--text-muted)]">No users found.</td></tr>
-                ) : (
-                  filteredUsers.map(u => (
-                    <tr key={u.uid} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
-                            {u.name.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="font-bold text-sm">{u.name}</p>
-                            <p className="text-xs text-[var(--text-muted)]">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[var(--text-muted)]">{u.college}</td>
-                      <td className="px-6 py-4">
-                        {u.isBlocked ? (
-                          <span className="px-2 py-1 bg-red-500/20 text-red-400 text-[10px] font-bold uppercase rounded-md border border-red-500/20">Blocked</span>
-                        ) : (
-                          <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase rounded-md border border-emerald-500/20">Active</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => toggleBlock(u)}
-                          className={cn(
-                            "p-2 rounded-lg transition-all",
-                            u.isBlocked 
-                              ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" 
-                              : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                          )}
-                          title={u.isBlocked ? "Unblock User" : "Block User"}
-                        >
-                          {u.isBlocked ? <ShieldCheck className="w-5 h-5" /> : <ShieldBan className="w-5 h-5" />}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -2070,6 +2573,225 @@ function AboutSection() {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function SettingsSection({ profile, onUpdate }: { profile: UserProfile, onUpdate: () => void }) {
+  const [name, setName] = useState(profile.name);
+  const [college, setCollege] = useState(profile.college);
+  const [photoURL, setPhotoURL] = useState(profile.photoURL || '');
+  const [darkMode, setDarkMode] = useState(document.documentElement.classList.contains('dark'));
+  const [notificationSounds, setNotificationSounds] = useState(true);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setName(profile.name);
+    setCollege(profile.college);
+    setPhotoURL(profile.photoURL || '');
+  }, [profile]);
+
+  const handleSave = async () => {
+    try {
+      await setDoc(doc(db, 'users', profile.uid), {
+        name,
+        college,
+        photoURL
+      }, { merge: true });
+      alert('Profile updated successfully!');
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile.');
+    }
+  };
+
+  const [isUploading, setIsUploading] = useState(false);
+
+  const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height *= maxWidth / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width *= maxHeight / height;
+              height = maxHeight;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas is empty'));
+          }, 'image/jpeg', 0.8);
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setIsUploading(true);
+      try {
+        // Resize image before upload
+        const resizedBlob = await resizeImage(file, 400, 400);
+        
+        const storageRef = ref(storage, `profiles/${profile.uid}`);
+        await uploadBytes(storageRef, resizedBlob);
+        const url = await getDownloadURL(storageRef);
+        
+        // Update Firestore immediately
+        await setDoc(doc(db, 'users', profile.uid), {
+          photoURL: url
+        }, { merge: true });
+        
+        setPhotoURL(url);
+        onUpdate(); // Refresh profile
+        alert('Photo updated successfully!');
+      } catch (error) {
+        console.error('Error uploading photo:', error);
+        alert('Failed to upload photo.');
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const toggleDarkMode = () => {
+    document.documentElement.classList.toggle('dark');
+    setDarkMode(!darkMode);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      try {
+        await deleteDoc(doc(db, 'users', profile.uid));
+        if (auth.currentUser) {
+          await auth.currentUser.delete();
+        }
+        await signOut(auth);
+        window.location.reload();
+      } catch (error: any) {
+        console.error('Error deleting account:', error);
+        if (error.code === 'auth/requires-recent-login') {
+          alert('For security reasons, please sign out and sign in again before deleting your account.');
+        } else {
+          alert(`Failed to delete account: ${error.message}`);
+        }
+      }
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold">Settings</h2>
+        <p className="text-[var(--text-muted)]">Manage your profile, security, and app preferences.</p>
+      </div>
+
+      <div className="glass-card p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500 overflow-hidden">
+            {photoURL ? <img src={photoURL} alt="Profile" className="w-full h-full object-cover" /> : <UserIcon className="w-8 h-8" />}
+          </div>
+          <div>
+            <h3 className="font-bold text-lg">Edit Profile</h3>
+            <p className="text-sm text-[var(--text-muted)]">Update your library visitor avatar</p>
+            <input type="file" ref={fileInputRef} onChange={handlePhotoChange} className="hidden" accept="image/*" />
+            <button onClick={() => fileInputRef.current?.click()} className="text-sm text-blue-500 font-semibold hover:underline mt-1" disabled={isUploading}>
+              {isUploading ? 'Uploading...' : 'Change Photo'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Full Name</label>
+            <input 
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">College / Office</label>
+            <input 
+              type="text" 
+              value={college} 
+              onChange={e => setCollege(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card p-6 space-y-6">
+        <h3 className="font-bold text-lg flex items-center gap-2"><Zap className="w-5 h-5" /> Preferences</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold">Dark Mode</p>
+            <p className="text-sm text-[var(--text-muted)]">Switch between dark and light themes</p>
+          </div>
+          <button 
+            onClick={toggleDarkMode}
+            className={`w-12 h-6 rounded-full transition-colors ${darkMode ? 'bg-blue-500' : 'bg-gray-300'}`}
+          >
+            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-7' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold">Notification Sounds</p>
+            <p className="text-sm text-[var(--text-muted)]">Play sound for new alerts and updates</p>
+          </div>
+          <button 
+            onClick={() => setNotificationSounds(!notificationSounds)}
+            className={`w-12 h-6 rounded-full transition-colors ${notificationSounds ? 'bg-blue-500' : 'bg-gray-300'}`}
+          >
+            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${notificationSounds ? 'translate-x-7' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
+
+      <div className="glass-card p-6 space-y-6 border-red-500/20">
+        <h3 className="font-bold text-lg flex items-center gap-2 text-red-500"><ShieldAlert className="w-5 h-5" /> Account Security</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold">Deactivate Account</p>
+            <p className="text-sm text-[var(--text-muted)]">Permanently delete your visitor profile and all associated browsing history.</p>
+          </div>
+          <button 
+            onClick={handleDeleteAccount}
+            className="px-4 py-2 bg-red-500/10 text-red-500 rounded-xl font-bold hover:bg-red-500/20 transition-colors"
+          >
+            Delete My Account
+          </button>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-4">
+        <button className="px-6 py-3 rounded-xl font-bold hover:bg-white/5 transition-colors">Cancel</button>
+        <button onClick={handleSave} className="px-6 py-3 bg-[#006d6d] text-white rounded-xl font-bold hover:bg-[#005a5a] transition-colors">Save Changes</button>
+      </div>
     </div>
   );
 }

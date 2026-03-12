@@ -83,6 +83,7 @@ service cloud.firestore {
                     (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user') || isAdmin());
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
                     ((isOwner(userId) && request.resource.data.role == resource.data.role && request.resource.data.isBlocked == resource.data.isBlocked) || isAdmin());
+      allow delete: if isAdmin();
       allow list: if isAdmin();
     }
 
@@ -97,6 +98,18 @@ service cloud.firestore {
     match /stats/{statId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && statId == 'library';
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /system_activities/{activityId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
     }
   }
 }

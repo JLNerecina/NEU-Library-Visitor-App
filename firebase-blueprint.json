@@ -37,6 +37,35 @@
         "occupancy": { "type": "integer", "description": "Current number of people in the library" }
       },
       "required": ["occupancy"]
+    },
+    "AppNotification": {
+      "title": "App Notification",
+      "description": "Notification for users and officers.",
+      "type": "object",
+      "properties": {
+        "recipientUid": { "type": "string", "description": "UID of the notification recipient" },
+        "title": { "type": "string", "description": "Notification title" },
+        "message": { "type": "string", "description": "Notification message" },
+        "type": { "type": "string", "enum": ["info", "success", "warning", "error"], "description": "Notification type" },
+        "timestamp": { "type": "object", "description": "Timestamp" },
+        "isRead": { "type": "boolean", "description": "Whether the notification has been read" }
+      },
+      "required": ["recipientUid", "title", "message", "type", "timestamp", "isRead"]
+    },
+    "SystemActivity": {
+      "title": "System Activity",
+      "description": "A record of a system-wide activity.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["entry", "exit", "add_user", "delete_user", "block_user", "unblock_user", "edit_user"] },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "object" }
+      },
+      "required": ["type", "actorId", "actorName", "timestamp"]
     }
   },
   "firestore": {
@@ -51,6 +80,14 @@
     "stats/library": {
       "schema": "LibraryStats",
       "description": "Library occupancy stats"
+    },
+    "notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "App notifications"
+    },
+    "system_activities/{activityId}": {
+      "schema": "SystemActivity",
+      "description": "Global audit log of system actions"
     }
   }
 }

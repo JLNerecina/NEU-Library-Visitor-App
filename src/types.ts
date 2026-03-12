@@ -6,6 +6,7 @@ export interface UserProfile {
   studentId?: string;
   isBlocked: boolean;
   role?: 'admin' | 'user' | 'library officer';
+  photoURL?: string;
 }
 
 export interface VisitLog {
@@ -16,6 +17,27 @@ export interface VisitLog {
   reason: string;
   timestamp: any; // Firestore Timestamp
   exitTimestamp?: any; // Firestore Timestamp
+}
+
+export interface AppNotification {
+  id?: string;
+  recipientUid: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: any;
+  isRead: boolean;
+}
+
+export interface SystemActivity {
+  id?: string;
+  type: 'entry' | 'exit' | 'add_user' | 'delete_user' | 'block_user' | 'unblock_user' | 'edit_user';
+  actorId: string;
+  actorName: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  timestamp: any;
 }
 
 export const COLLEGES = [
@@ -42,5 +64,5 @@ export const REASONS = [
   "Other"
 ];
 
-export const ADMIN_EMAIL = "johnliannerecina@gmail.com";
-export const OFFICER_EMAIL = "johnlian.nerecina@neu.edu.ph";
+export const ADMIN_EMAIL = "johnlian.nerecina@neu.edu.ph";
+export const OFFICER_EMAIL = "some-other-officer@neu.edu.ph";
