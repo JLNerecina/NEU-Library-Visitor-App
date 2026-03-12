@@ -337,12 +337,17 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
+      console.error("Google Login Error:", err);
       if (err.code === 'auth/popup-blocked') {
         setAuthError("The sign-in popup was blocked by your browser. Please allow popups for this site or try again.");
       } else if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
         // Ignore these common user-initiated cancellations
+      } else if (err.code === 'auth/internal-error' || err.message.includes('missing initial state')) {
+        setAuthError("Sign-in failed due to a browser restriction. Please try: 1. Disabling 'Block third-party cookies'. 2. Using a different browser. 3. Disabling Incognito/Private mode.");
+      } else if (err.code === 'auth/web-storage-unsupported') {
+        setAuthError("Your browser does not support the storage required for sign-in. Please try a different browser or disable private mode.");
       } else {
-        setAuthError(err.message);
+        setAuthError(`Sign-in error: ${err.message}`);
       }
     } finally {
       setIsAuthenticating(false);
@@ -1996,6 +2001,15 @@ function LoginScreen({ onGoogleLogin, onEmailLogin, onToggleRegister, error, isA
           )}
           {isAuthenticating ? 'Connecting...' : 'Sign in with Google'}
         </button>
+
+        {error && error.includes("browser restriction") && (
+          <div className="text-[10px] text-[var(--text-muted)] text-center px-4 leading-relaxed">
+            Tip: If you see "missing initial state", try opening this app in a 
+            <a href={window.location.href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-1">
+              new tab
+            </a> or disabling "Block third-party cookies" in your browser settings.
+          </div>
+        )}
 
         <p className="text-center text-sm text-[var(--text-muted)]">
           Don't have an account? <button onClick={onToggleRegister} className="text-blue-500 font-semibold hover:underline">Register your visit</button>
