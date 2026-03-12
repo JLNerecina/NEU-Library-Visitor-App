@@ -98,3 +98,6 @@ The UI/UX is built with a "Glassmorphism" aesthetic, utilizing semi-transparent 
 ---
 
 Made with ❤️ for New Era University.
+Created by: John Lian R. Nerecina
+Section: 3-BSCS-1
+Github: @JLNerecina
