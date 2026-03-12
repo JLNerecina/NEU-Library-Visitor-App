@@ -94,7 +94,8 @@ import {
   UserPlus,
   Edit2,
   X,
-  Check
+  Check,
+  BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -712,29 +713,45 @@ function MobileNav({
 }) {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--glass-bg)] backdrop-blur-xl border-t border-[var(--glass-border)] z-50 pb-safe">
-      <div className="flex items-center justify-around p-2">
+      <div className="flex items-center justify-between px-2 py-2 w-full overflow-x-auto no-scrollbar">
         <MobileNavItem 
           active={activeView === 'home'} 
           onClick={() => setView('home')} 
-          icon={<LayoutDashboard className="w-6 h-6" />} 
+          icon={<LayoutDashboard className="w-5 h-5" />} 
           label="Home" 
         />
         <MobileNavItem 
           active={activeView === 'logs'} 
           onClick={() => setView('logs')} 
-          icon={<History className="w-6 h-6" />} 
+          icon={<History className="w-5 h-5" />} 
           label={profile.role === 'admin' || profile.role === 'library officer' ? "Activity" : "History"} 
         />
+        {profile.role === 'admin' && (
+          <>
+            <MobileNavItem 
+              active={activeView === 'management'} 
+              onClick={() => setView('management')} 
+              icon={<Users className="w-5 h-5" />} 
+              label="Users" 
+            />
+            <MobileNavItem 
+              active={activeView === 'admin'} 
+              onClick={() => setView('admin')} 
+              icon={<BarChart3 className="w-5 h-5" />} 
+              label="Analytics" 
+            />
+          </>
+        )}
         <MobileNavItem 
           active={activeView === 'about'} 
           onClick={() => setView('about')} 
-          icon={<Info className="w-6 h-6" />} 
+          icon={<Info className="w-5 h-5" />} 
           label="About" 
         />
         <MobileNavItem 
           active={activeView === 'map'} 
           onClick={() => setView('map')} 
-          icon={<Map className="w-6 h-6" />} 
+          icon={<Map className="w-5 h-5" />} 
           label="Map" 
         />
       </div>
@@ -747,12 +764,12 @@ function MobileNavItem({ active, onClick, icon, label }: { active: boolean, onCl
     <button 
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+        "flex flex-1 flex-col items-center justify-center gap-1 p-2 rounded-xl transition-all min-w-[56px] shrink-0",
         active ? "text-blue-500" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
       )}
     >
       {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      <span className="text-[10px] font-medium truncate w-full text-center">{label}</span>
     </button>
   );
 }
@@ -874,28 +891,30 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
 function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfile, theme: string, toggleTheme: () => void, onLogout: () => void }) {
   return (
     <header className="w-full bg-[var(--glass-bg)]/50 backdrop-blur-md border-b border-[var(--glass-border)] px-4 md:px-8 py-4 flex items-center justify-between z-40">
-      <div className="flex items-center gap-3">
-        <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-8 h-8 object-contain lg:hidden" />
-        <h2 className="text-xl font-bold text-[var(--text-main)] truncate">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-8 h-8 object-contain lg:hidden shrink-0" />
+        <h2 className="text-lg md:text-xl font-bold text-[var(--text-main)] truncate">
           {profile.role === 'admin' ? 'Administrator' : profile.role === 'library officer' ? 'Library Officer' : 'Student'} Dashboard
         </h2>
       </div>
       
-      <div className="flex items-center gap-4 md:gap-6">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 md:gap-6 shrink-0 ml-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button 
             onClick={toggleTheme}
-            className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+            className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors shrink-0"
           >
             {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
           </button>
-          <NotificationBell profile={profile} />
+          <div className="shrink-0">
+            <NotificationBell profile={profile} />
+          </div>
         </div>
 
-        <div className="h-8 w-px bg-[var(--glass-border)] hidden sm:block" />
+        <div className="h-8 w-px bg-[var(--glass-border)] hidden sm:block shrink-0" />
 
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right hidden sm:block shrink-0">
             <p className="text-sm font-bold leading-none">{profile.name}</p>
             <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase mt-1">
               {profile.role === 'admin' ? 'Administrator' : profile.role === 'library officer' ? 'Library Officer' : 'Student'}
@@ -906,7 +925,7 @@ function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfil
           </div>
           <button 
             onClick={onLogout}
-            className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors lg:hidden"
+            className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors lg:hidden shrink-0"
             title="Sign Out"
           >
             <LogOut className="w-5 h-5" />
@@ -1279,20 +1298,20 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     <div className="space-y-8">
       {/* Search Bar & Actions */}
       <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)] shrink-0" />
           <input 
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search visitors, records, or logs..."
-            className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all min-w-0 text-ellipsis"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:overflow-visible no-scrollbar">
           <button 
             onClick={openAddModal}
-            className="px-6 py-4 bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 rounded-2xl font-bold text-sm hover:bg-emerald-600/20 transition-all flex items-center justify-center gap-2"
+            className="px-4 md:px-6 py-3 md:py-4 bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 rounded-2xl font-bold text-sm hover:bg-emerald-600/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <UserPlus className="w-4 h-4" /> 
             Add User
@@ -1301,7 +1320,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
             onClick={recalculateOccupancy}
             disabled={isSeeding}
             title="Sync Occupancy"
-            className="p-4 border border-white/10 rounded-2xl hover:bg-white/5 transition-all text-[var(--text-muted)]"
+            className="p-3 md:p-4 border border-white/10 rounded-2xl hover:bg-white/5 transition-all text-[var(--text-muted)] shrink-0"
           >
             <RefreshCw className={cn("w-5 h-5", isSeeding && "animate-spin")} />
           </button>
@@ -1309,7 +1328,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
             onClick={seedExampleData}
             disabled={isSeeding}
             className={cn(
-              "px-6 py-4 border rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2",
+              "px-4 md:px-6 py-3 md:py-4 border rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap",
               isSeeding 
                 ? "bg-gray-500/10 text-gray-400 border-gray-500/20 cursor-not-allowed" 
                 : "bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600/20"
@@ -1322,7 +1341,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
             onClick={clearExampleData}
             disabled={isSeeding}
             className={cn(
-              "px-6 py-4 border rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2",
+              "px-4 md:px-6 py-3 md:py-4 border rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap",
               isSeeding 
                 ? "bg-gray-500/10 text-gray-400 border-gray-500/20 cursor-not-allowed" 
                 : confirmingClear
@@ -1354,7 +1373,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         </div>
       )}
 
-      <h2 className="text-2xl font-bold mb-4">{profile.role === 'admin' ? 'Library Director' : 'Library Officer'} Dashboard</h2>
+      <h2 className="text-xl md:text-2xl font-bold mb-4">{profile.role === 'admin' ? 'Library Director' : 'Library Officer'} Dashboard</h2>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1364,70 +1383,70 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         <StatCard icon={<Zap className="w-6 h-6" />} label="Active Users" value={users.filter(u => !u.isBlocked).length} />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid lg:grid-cols-3 gap-4 md:gap-8">
         {/* User Management */}
-        <div className="lg:col-span-2 glass-card p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold">User Management</h3>
-            <div className="flex gap-2">
+        <div className="lg:col-span-2 glass-card p-4 md:p-6 space-y-4 md:space-y-6 overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="text-lg md:text-xl font-bold">User Management</h3>
+            <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 no-scrollbar">
               {isBulkDeleteMode ? (
                 <>
-                  <button onClick={() => setIsBulkDeleteMode(false)} className="px-4 py-2 bg-gray-500/10 text-gray-400 rounded-xl text-sm font-bold hover:bg-gray-500/20">Cancel</button>
-                  <button onClick={handleBulkDelete} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-500">Confirm Delete ({selectedUsers.size})</button>
+                  <button onClick={() => setIsBulkDeleteMode(false)} className="px-3 md:px-4 py-2 bg-gray-500/10 text-gray-400 rounded-xl text-xs md:text-sm font-bold hover:bg-gray-500/20 whitespace-nowrap">Cancel</button>
+                  <button onClick={handleBulkDelete} className="px-3 md:px-4 py-2 bg-red-600 text-white rounded-xl text-xs md:text-sm font-bold hover:bg-red-500 whitespace-nowrap">Confirm Delete ({selectedUsers.size})</button>
                 </>
               ) : (
-                <button onClick={() => setIsBulkDeleteMode(true)} className="px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-red-500/20">
+                <button onClick={() => setIsBulkDeleteMode(true)} className="px-3 md:px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 hover:bg-red-500/20 whitespace-nowrap">
                   <Trash2 className="w-4 h-4" /> Bulk Delete
                 </button>
               )}
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <table className="w-full text-[10px] md:text-sm">
               <thead>
                 <tr className="text-[var(--text-muted)] border-b border-white/10">
-                  {isBulkDeleteMode && <th className="py-4 px-2"><input type="checkbox" checked={selectedUsers.size === users.length} onChange={(e) => setSelectedUsers(e.target.checked ? new Set(users.map(u => u.uid)) : new Set())} /></th>}
-                  <th className="text-left py-4 px-2">USER NAME</th>
-                  <th className="text-left py-4 px-2">COLLEGE</th>
-                  <th className="text-left py-4 px-2">ROLE</th>
-                  <th className="text-left py-4 px-2">STATUS</th>
-                  <th className="text-left py-4 px-2">ACTIONS</th>
+                  {isBulkDeleteMode && <th className="py-2 md:py-4 px-1 md:px-2"><input type="checkbox" checked={selectedUsers.size === users.length} onChange={(e) => setSelectedUsers(e.target.checked ? new Set(users.map(u => u.uid)) : new Set())} /></th>}
+                  <th className="text-left py-2 md:py-4 px-1 md:px-2">USER NAME</th>
+                  <th className="text-left py-2 md:py-4 px-1 md:px-2">COLLEGE</th>
+                  <th className="text-left py-2 md:py-4 px-1 md:px-2">ROLE</th>
+                  <th className="text-left py-2 md:py-4 px-1 md:px-2">STATUS</th>
+                  <th className="text-left py-2 md:py-4 px-1 md:px-2">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr key={user.uid} className="border-b border-white/5 hover:bg-white/5">
-                    {isBulkDeleteMode && <td className="py-4 px-2"><input type="checkbox" checked={selectedUsers.has(user.uid)} onChange={(e) => { const next = new Set(selectedUsers); e.target.checked ? next.add(user.uid) : next.delete(user.uid); setSelectedUsers(next); }} /></td>}
-                    <td className="py-4 px-2 font-bold flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                    {isBulkDeleteMode && <td className="py-2 md:py-4 px-1 md:px-2"><input type="checkbox" checked={selectedUsers.has(user.uid)} onChange={(e) => { const next = new Set(selectedUsers); e.target.checked ? next.add(user.uid) : next.delete(user.uid); setSelectedUsers(next); }} /></td>}
+                    <td className="py-2 md:py-4 px-1 md:px-2 font-bold flex items-center gap-2 md:gap-3">
+                      <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0 text-[10px] md:text-xs">
                         {user.name.split(' ').map(n => n[0]).join('')}
                       </div>
-                      {user.name}
+                      <span className="truncate max-w-[80px] md:max-w-[150px]">{user.name}</span>
                     </td>
-                    <td className="py-4 px-2 text-[var(--text-muted)]">{user.college}</td>
-                    <td className="py-4 px-2">
-                      <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-full text-xs font-bold capitalize">
+                    <td className="py-2 md:py-4 px-1 md:px-2 text-[var(--text-muted)] truncate max-w-[80px] md:max-w-none">{user.college}</td>
+                    <td className="py-2 md:py-4 px-1 md:px-2">
+                      <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-blue-500/10 text-blue-400 rounded-full text-[8px] md:text-xs font-bold capitalize whitespace-nowrap">
                         {user.role || 'user'}
                       </span>
                     </td>
-                    <td className="py-4 px-2">
-                      <span className={cn("px-2 py-1 rounded-full text-xs font-bold", !user.isBlocked ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+                    <td className="py-2 md:py-4 px-1 md:px-2">
+                      <span className={cn("px-1.5 md:px-2 py-0.5 md:py-1 rounded-full text-[8px] md:text-xs font-bold whitespace-nowrap", !user.isBlocked ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
                         ● {user.isBlocked ? 'Blocked' : 'Active'}
                       </span>
                     </td>
-                    <td className="py-4 px-2 text-blue-400 font-bold cursor-pointer hover:underline">
-                      <div className="flex gap-2">
+                    <td className="py-2 md:py-4 px-1 md:px-2 text-blue-400 font-bold cursor-pointer hover:underline">
+                      <div className="flex gap-1 md:gap-2 text-[10px] md:text-sm">
                         <button 
                           onClick={() => openEditModal(user)}
-                          className="p-2 hover:bg-white/10 rounded-lg text-[var(--text-muted)] hover:text-blue-400 transition-colors"
+                          className="p-1 md:p-2 hover:bg-white/10 rounded-lg text-[var(--text-muted)] hover:text-blue-400 transition-colors"
                           title="Edit User"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3 h-3 md:w-4 md:h-4" />
                         </button>
-                        <button onClick={() => handleBlockToggle(user)}>{user.isBlocked ? 'Unblock' : 'Block'}</button>
+                        <button onClick={() => handleBlockToggle(user)} className="px-1 md:px-2">{user.isBlocked ? 'Unblock' : 'Block'}</button>
                         <button 
                           onClick={() => handleDelete(user.uid)} 
-                          className={cn("transition-colors", confirmingDelete === user.uid ? "text-white bg-red-600 px-2 rounded" : "text-red-400")}
+                          className={cn("transition-colors px-1 md:px-2", confirmingDelete === user.uid ? "text-white bg-red-600 rounded" : "text-red-400")}
                         >
                           {confirmingDelete === user.uid ? 'Confirm?' : 'Delete'}
                         </button>
@@ -1683,7 +1702,7 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
             <p className="text-sm font-medium text-blue-400 mb-1">Welcome back,</p>
             <h1 className="text-4xl font-bold mb-8">{profile.name}</h1>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
                 <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">College</p>
                 <p className="text-sm font-bold truncate">{profile.college}</p>
@@ -2411,13 +2430,13 @@ function UserLogs({ profile }: { profile: UserProfile }) {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: number }) {
   return (
-    <div className="glass-card p-6 flex items-center gap-6">
-      <div className="w-14 h-14 rounded-2xl bg-[var(--input-bg)] flex items-center justify-center text-2xl border border-white/10">
+    <div className="glass-card p-4 md:p-6 flex items-center gap-4 md:gap-6">
+      <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[var(--input-bg)] flex items-center justify-center text-xl md:text-2xl border border-white/10 shrink-0">
         {icon}
       </div>
-      <div>
-        <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">{label}</p>
-        <p className="text-3xl font-bold">{value}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] md:text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider md:tracking-widest truncate">{label}</p>
+        <p className="text-2xl md:text-3xl font-bold truncate">{value}</p>
       </div>
     </div>
   );

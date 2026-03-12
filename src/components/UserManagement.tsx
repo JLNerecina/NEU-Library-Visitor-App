@@ -104,79 +104,79 @@ export default function UserManagement() {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-[var(--input-bg)] text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+          <thead className="bg-[var(--input-bg)] text-left text-[10px] md:text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             <tr>
-              <th className="px-6 py-4">User</th>
-              <th className="px-6 py-4">College</th>
-              <th className="px-6 py-4">Role</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              <th className="px-3 py-3 md:px-6 md:py-4">User</th>
+              <th className="px-3 py-3 md:px-6 md:py-4">College</th>
+              <th className="px-3 py-3 md:px-6 md:py-4">Role</th>
+              <th className="px-3 py-3 md:px-6 md:py-4">Status</th>
+              <th className="px-3 py-3 md:px-6 md:py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {loading ? (
-              <tr><td colSpan={4} className="px-6 py-12 text-center text-[var(--text-muted)]">Loading users...</td></tr>
+              <tr><td colSpan={5} className="px-3 py-8 md:px-6 md:py-12 text-center text-[var(--text-muted)]">Loading users...</td></tr>
             ) : filteredUsers.length === 0 ? (
-              <tr><td colSpan={4} className="px-6 py-12 text-center text-[var(--text-muted)]">No users found.</td></tr>
+              <tr><td colSpan={5} className="px-3 py-8 md:px-6 md:py-12 text-center text-[var(--text-muted)]">No users found.</td></tr>
             ) : (
               filteredUsers.map(u => (
                 <tr key={u.uid} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
+                  <td className="px-3 py-3 md:px-6 md:py-4">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
                         {u.name.charAt(0)}
                       </div>
-                      <div>
-                        <p className="font-bold text-sm">{u.name}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{u.email}</p>
+                      <div className="min-w-0 max-w-[120px] md:max-w-none">
+                        <p className="font-bold text-xs md:text-sm truncate">{u.name}</p>
+                        <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">{u.email}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-[var(--text-muted)]">{u.college}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-full text-xs font-bold capitalize">
+                  <td className="px-3 py-3 md:px-6 md:py-4 text-xs md:text-sm text-[var(--text-muted)] truncate max-w-[100px] md:max-w-none">{u.college}</td>
+                  <td className="px-3 py-3 md:px-6 md:py-4">
+                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-full text-[10px] md:text-xs font-bold capitalize whitespace-nowrap">
                       {u.role || 'user'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 md:px-6 md:py-4">
                     {u.isBlocked ? (
-                      <span className="px-2 py-1 bg-red-500/20 text-red-400 text-[10px] font-bold uppercase rounded-md border border-red-500/20">Blocked</span>
+                      <span className="px-2 py-1 bg-red-500/20 text-red-400 text-[8px] md:text-[10px] font-bold uppercase rounded-md border border-red-500/20 whitespace-nowrap">Blocked</span>
                     ) : (
-                      <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase rounded-md border border-emerald-500/20">Active</span>
+                      <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase rounded-md border border-emerald-500/20 whitespace-nowrap">Active</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-3 md:px-6 md:py-4 text-right">
+                    <div className="flex items-center justify-end gap-1 md:gap-2">
                       <button 
                         onClick={() => openEditModal(u)}
-                        className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all"
+                        className="p-1.5 md:p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all"
                         title="Edit User"
                       >
-                        <Edit2 className="w-5 h-5" />
+                        <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
                       </button>
                       <button 
                         onClick={() => toggleBlock(u)}
                         className={cn(
-                          "p-2 rounded-lg transition-all",
+                          "p-1.5 md:p-2 rounded-lg transition-all",
                           u.isBlocked 
                             ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" 
                             : "bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
                         )}
                         title={u.isBlocked ? "Unblock User" : "Block User"}
                       >
-                        {u.isBlocked ? <ShieldCheck className="w-5 h-5" /> : <ShieldBan className="w-5 h-5" />}
+                        {u.isBlocked ? <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" /> : <ShieldBan className="w-4 h-4 md:w-5 md:h-5" />}
                       </button>
                       <button 
                         onClick={() => handleDelete(u.uid)}
                         className={cn(
-                          "p-2 rounded-lg transition-all",
+                          "p-1.5 md:p-2 rounded-lg transition-all",
                           confirmingDelete === u.uid 
                             ? "bg-red-600 text-white" 
                             : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
                         )}
                         title="Delete User"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
                       </button>
                     </div>
                   </td>

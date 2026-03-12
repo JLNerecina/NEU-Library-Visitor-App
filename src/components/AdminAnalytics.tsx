@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Printer, Calendar, Database, Download, TrendingUp, TrendingDown } from 'lucide-react';
-import { collection, onSnapshot, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, Timestamp, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { useReactToPrint } from 'react-to-print';
@@ -211,42 +211,45 @@ const AdminAnalytics = () => {
   }, [filteredLogs]);
 
   return (
-    <div className="min-h-screen bg-[#0a1111] text-white p-8">
-      <header className="flex justify-between items-center mb-8">
+    <div className="min-h-screen bg-[#0a1111] text-white p-4 md:p-8">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold">Detailed Analytics & Reports</h1>
           <p className="text-sm text-gray-400">Live Updates</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
               placeholder="Search reports..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-[#1a2626] border-none rounded-lg py-2 pl-10 pr-4 text-sm" 
+              className="w-full bg-[#1a2626] border-none rounded-lg py-2 pl-10 pr-4 text-sm" 
             />
           </div>
-          <button onClick={populateSampleData} className="flex items-center gap-2 bg-gray-600 px-4 py-2 rounded-lg text-sm">
-            <Database className="w-4 h-4" /> Populate Sample
+          <button onClick={populateSampleData} className="flex-1 md:flex-none justify-center flex items-center gap-2 bg-gray-600 px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+            <Database className="w-4 h-4" /> Sample
           </button>
-          <button onClick={handlePrint} className="flex items-center gap-2 bg-teal-600 px-4 py-2 rounded-lg text-sm">
-            <Printer className="w-4 h-4" /> Print PDF
+          <button onClick={handlePrint} className="flex-1 md:flex-none justify-center flex items-center gap-2 bg-teal-600 px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+            <Printer className="w-4 h-4" /> Print
           </button>
-          <button onClick={handleDownload} className="flex items-center gap-2 bg-teal-800 px-4 py-2 rounded-lg text-sm">
-            <Download className="w-4 h-4" /> Download PDF
+          <button onClick={handleDownload} className="flex-1 md:flex-none justify-center flex items-center gap-2 bg-teal-800 px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+            <Download className="w-4 h-4" /> PDF
           </button>
         </div>
       </header>
 
       {/* Date Range & Stats */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <div className="col-span-3 bg-[#1a2626] p-4 rounded-xl flex gap-4 items-center">
-          <Calendar className="w-5 h-5 text-gray-400" />
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-[#0a1111] p-2 rounded-lg text-sm" />
-          <span>to</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-[#0a1111] p-2 rounded-lg text-sm" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+        <div className="lg:col-span-3 bg-[#1a2626] p-4 rounded-xl flex flex-col sm:flex-row gap-4 items-center">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Calendar className="w-5 h-5 text-gray-400" />
+            <span className="text-sm text-gray-400 sm:hidden">Date Range:</span>
+          </div>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full sm:w-auto bg-[#0a1111] p-2 rounded-lg text-sm" />
+          <span className="hidden sm:inline">to</span>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full sm:w-auto bg-[#0a1111] p-2 rounded-lg text-sm" />
         </div>
         <div className="bg-[#1a2626] p-4 rounded-xl flex justify-between items-center">
           <div>
@@ -261,8 +264,8 @@ const AdminAnalytics = () => {
       </div>
 
       {/* Top Charts */}
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        <div className="col-span-2 bg-[#1a2626] p-6 rounded-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
+        <div className="lg:col-span-2 bg-[#1a2626] p-4 md:p-6 rounded-xl">
           <h2 className="font-bold mb-1">Visitor Trends</h2>
           <p className="text-xs text-gray-400 mb-4">Daily foot traffic for the selected period</p>
           <div className="h-64">
@@ -277,7 +280,7 @@ const AdminAnalytics = () => {
           </div>
         </div>
         
-        <div className="bg-[#1a2626] p-6 rounded-xl">
+        <div className="bg-[#1a2626] p-4 md:p-6 rounded-xl">
           <h2 className="font-bold mb-1">Visits by College</h2>
           <p className="text-xs text-gray-400 mb-4">Student demographics distribution</p>
           <div className="h-48 relative">
@@ -319,8 +322,8 @@ const AdminAnalytics = () => {
       </div>
 
       {/* Middle Charts */}
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        <div className="bg-[#1a2626] p-6 rounded-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
+        <div className="bg-[#1a2626] p-4 md:p-6 rounded-xl">
           <h2 className="font-bold mb-6">Purpose of Visit</h2>
           <div className="space-y-6">
             {purposeData.map((data, index) => (
@@ -343,7 +346,7 @@ const AdminAnalytics = () => {
           </div>
         </div>
 
-        <div className="col-span-2 bg-[#1a2626] p-6 rounded-xl">
+        <div className="lg:col-span-2 bg-[#1a2626] p-4 md:p-6 rounded-xl">
           <h2 className="font-bold mb-4">Peak Hours Density</h2>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
@@ -359,40 +362,40 @@ const AdminAnalytics = () => {
       </div>
 
       {/* Bottom Table */}
-      <div className="bg-[#1a2626] p-6 rounded-xl">
+      <div className="bg-[#1a2626] p-4 md:p-6 rounded-xl">
         <h2 className="font-bold mb-6">College Engagement Ranking</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-[10px] md:text-sm">
             <thead>
               <tr className="text-gray-400 border-b border-gray-800">
-                <th className="pb-4 font-medium">RANK</th>
-                <th className="pb-4 font-medium">COLLEGE</th>
-                <th className="pb-4 font-medium">TOTAL VISITS</th>
-                <th className="pb-4 font-medium">ENGAGEMENT RATE</th>
-                <th className="pb-4 font-medium">TREND</th>
+                <th className="pb-2 md:pb-4 px-1 md:px-2 font-medium">RANK</th>
+                <th className="pb-2 md:pb-4 px-1 md:px-2 font-medium">COLLEGE</th>
+                <th className="pb-2 md:pb-4 px-1 md:px-2 font-medium">TOTAL VISITS</th>
+                <th className="pb-2 md:pb-4 px-1 md:px-2 font-medium">ENGAGEMENT RATE</th>
+                <th className="pb-2 md:pb-4 px-1 md:px-2 font-medium">TREND</th>
               </tr>
             </thead>
             <tbody>
               {collegeRanking.map((college, index) => (
                 <tr key={college.name} className="border-b border-gray-800/50">
-                  <td className="py-4 font-bold">#{index + 1}</td>
-                  <td className="py-4">
-                    <span className="text-teal-400 font-bold mr-2">{college.name}</span>
+                  <td className="py-2 md:py-4 px-1 md:px-2 font-bold">#{index + 1}</td>
+                  <td className="py-2 md:py-4 px-1 md:px-2">
+                    <span className="text-teal-400 font-bold mr-2 truncate max-w-[80px] md:max-w-none block md:inline">{college.name}</span>
                   </td>
-                  <td className="py-4">{college.visits}</td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-24 h-1.5 bg-[#0a1111] rounded-full overflow-hidden">
+                  <td className="py-2 md:py-4 px-1 md:px-2">{college.visits}</td>
+                  <td className="py-2 md:py-4 px-1 md:px-2">
+                    <div className="flex items-center gap-2 md:gap-4">
+                      <div className="w-16 md:w-24 h-1.5 bg-[#0a1111] rounded-full overflow-hidden shrink-0">
                         <div className="h-full bg-teal-500 rounded-full" style={{ width: `${college.engagement}%` }}></div>
                       </div>
                       <span className="font-bold">{college.engagement}%</span>
                     </div>
                   </td>
-                  <td className="py-4">
+                  <td className="py-2 md:py-4 px-1 md:px-2">
                     {college.trend === 'up' ? (
-                      <TrendingUp className="w-4 h-4 text-teal-400" />
+                      <TrendingUp className="w-3 h-3 md:w-4 md:h-4 text-teal-400" />
                     ) : (
-                      <TrendingDown className="w-4 h-4 text-red-400" />
+                      <TrendingDown className="w-3 h-3 md:w-4 md:h-4 text-red-400" />
                     )}
                   </td>
                 </tr>

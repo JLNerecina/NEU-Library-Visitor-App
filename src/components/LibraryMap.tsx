@@ -12,8 +12,8 @@ const LibraryMap: React.FC = () => {
   const levels = ['Level 3', 'Level 2', 'Level 1 (Main)', 'Basement'];
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: bgDark, color: 'white' }}>
-      <h1 className="text-4xl font-bold mb-2">Library Floor Plan</h1>
+    <div className="p-4 md:p-8 min-h-screen" style={{ backgroundColor: bgDark, color: 'white' }}>
+      <h1 className="text-3xl md:text-4xl font-bold mb-2">Library Floor Plan</h1>
       <p className="text-gray-400 mb-8">Find your way around the NEU University Main Library. Explore study zones, quiet areas, and collection stacks.</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
