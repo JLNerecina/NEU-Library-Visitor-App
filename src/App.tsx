@@ -525,7 +525,7 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                     >
-                      <UserManagement />
+                      <UserManagement currentUserRole={profile.role} />
                     </motion.div>
                   )}
                   {view === 'home' && (
@@ -1245,11 +1245,16 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     }
   };
 
-  const filteredUsers = displayUsers.filter(u => 
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.college.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.studentId?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = displayUsers.filter(u => {
+    const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.college.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.studentId?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (profile.role === 'library officer') {
+      return matchesSearch && u.role !== 'admin';
+    }
+    return matchesSearch;
+  });
 
   const filteredLogs = displayLogs.filter(l => 
     l.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1400,7 +1405,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
       <h2 className="text-xl md:text-2xl font-bold mb-4">{profile.role === 'admin' ? 'Administrator' : 'Library Officer'} Dashboard</h2>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard 
           icon={<Users className="w-6 h-6" />} 
           label="Today's Visitors" 
@@ -1411,7 +1416,7 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         />
         <StatCard icon={<DoorOpen className="w-6 h-6" />} label="Current Occupancy" value={occupancy} />
         <StatCard icon={<Calendar className="w-6 h-6" />} label="Weekly Total" value={displayLogs.length} />
-        <StatCard icon={<Zap className="w-6 h-6" />} label="Active Users" value={displayUsers.filter(u => !u.isBlocked).length} />
+        <StatCard icon={<Zap className="w-6 h-6" />} label="Active Users" value={displayUsers.filter(u => !u.isBlocked && (profile.role !== 'library officer' || u.role !== 'admin')).length} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4 md:gap-8">
@@ -2496,13 +2501,13 @@ function UserLogs({ profile }: { profile: UserProfile }) {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: number }) {
   return (
-    <div className="glass-card p-4 md:p-6 flex items-center gap-4 md:gap-6">
-      <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[var(--input-bg)] flex items-center justify-center text-xl md:text-2xl border border-white/10 shrink-0">
+    <div className="glass-card p-4 md:p-6 flex items-center gap-4">
+      <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-[var(--input-bg)] flex items-center justify-center text-lg md:text-2xl border border-white/10 shrink-0">
         {icon}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] md:text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider md:tracking-widest truncate">{label}</p>
-        <p className="text-2xl md:text-3xl font-bold truncate">{value}</p>
+      <div className="min-w-0 flex-1 flex flex-col justify-center">
+        <p className="text-[10px] md:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight md:tracking-wider leading-tight mb-0.5 break-words">{label}</p>
+        <p className="text-xl md:text-3xl font-bold truncate leading-none">{value}</p>
       </div>
     </div>
   );

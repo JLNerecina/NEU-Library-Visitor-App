@@ -6,7 +6,7 @@ import { Search, ShieldBan, ShieldCheck, Users, Edit2, Trash2, X } from 'lucide-
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
-export default function UserManagement() {
+export default function UserManagement({ currentUserRole }: { currentUserRole?: string }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,14 +16,21 @@ export default function UserManagement() {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-      setUsers(snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+      let fetchedUsers = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+      
+      // Filter out admins if the current user is a library officer
+      if (currentUserRole === 'library officer') {
+        fetchedUsers = fetchedUsers.filter(u => u.role !== 'admin');
+      }
+      
+      setUsers(fetchedUsers);
       setLoading(false);
     }, (err) => {
       console.error(err);
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [currentUserRole]);
 
   const toggleBlock = async (userProfile: UserProfile) => {
     try {
@@ -242,7 +249,7 @@ export default function UserManagement() {
                   >
                     <option value="user" className="text-black">Student</option>
                     <option value="library officer" className="text-black">Library Officer</option>
-                    <option value="admin" className="text-black">Admin</option>
+                    {currentUserRole === 'admin' && <option value="admin" className="text-black">Admin</option>}
                   </select>
                 </div>
               </div>
