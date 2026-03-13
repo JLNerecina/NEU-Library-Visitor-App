@@ -2847,12 +2847,13 @@ function SettingsSection({ profile, onUpdate }: { profile: UserProfile, onUpdate
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">College / Office</label>
-            <input 
-              type="text" 
+            <select 
               value={college} 
               onChange={e => setCollege(e.target.value)}
-              className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-            />
+              className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[var(--text-main)]"
+            >
+              {COLLEGES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+            </select>
           </div>
         </div>
       </div>

@@ -41,17 +41,26 @@ export interface SystemActivity {
 }
 
 export const COLLEGES = [
+  "College of Accountancy",
+  "College of Agriculture",
   "College of Arts and Sciences",
   "College of Business Administration",
-  "College of Computer Studies",
+  "College of Communication",
+  "College of Informatics and Computing Studies",
+  "College of Criminology",
   "College of Education",
-  "College of Engineering and Architecture",
+  "College of Engineering & Architecture",
+  "College of Law",
+  "College of Medical Technology",
+  "College of Medicine",
+  "College of Midwifery",
   "College of Music",
   "College of Nursing",
-  "College of Law",
+  "College of Physical Therapy",
+  "College of Respiratory Therapy",
+  "School of International Relations",
   "School of Graduate Studies",
-  "Office / Staff",
-  "Visitor / External"
+  "Integrated School"
 ];
 
 export const REASONS = [
