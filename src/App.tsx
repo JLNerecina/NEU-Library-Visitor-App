@@ -40,6 +40,7 @@ import {
   VisitLog, 
   AppNotification,
   SystemActivity,
+  LibraryUpdate,
   COLLEGES, 
   REASONS, 
   ADMIN_EMAIL,
@@ -85,6 +86,7 @@ import {
   FileText,
   Trash2,
   Plus,
+  Megaphone,
   BookMarked,
   DoorOpen,
   DoorClosed,
@@ -165,12 +167,97 @@ async function createNotification(recipientUid: string, title: string, message: 
   }
 }
 
+async function notifyAllUsers(title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+  try {
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const batch = writeBatch(db);
+    usersSnap.docs.forEach(userDoc => {
+      const notificationRef = doc(collection(db, 'notifications'));
+      batch.set(notificationRef, {
+        recipientUid: userDoc.id,
+        title,
+        message,
+        type,
+        timestamp: serverTimestamp(),
+        isRead: false
+      });
+    });
+    await batch.commit();
+  } catch (err) {
+    console.error("Error notifying all users:", err);
+  }
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let errorMessage = "Something went wrong.";
+      let isPermissionError = false;
+
+      try {
+        const parsedError = JSON.parse(this.state.error.message);
+        if (parsedError.error && parsedError.error.includes("permission")) {
+          isPermissionError = true;
+          errorMessage = `Permission Denied: You don't have access to ${parsedError.path || 'this resource'}.`;
+        }
+      } catch (e) {
+        errorMessage = this.state.error.message || errorMessage;
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-color)]">
+          <div className="glass-card p-8 max-w-md w-full text-center space-y-6">
+            <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500 mx-auto">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">System Error</h2>
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                {errorMessage}
+              </p>
+            </div>
+            <div className="pt-4 flex flex-col gap-3">
+              <button 
+                onClick={() => window.location.reload()}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20"
+              >
+                Refresh Application
+              </button>
+              <button 
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="w-full py-3 bg-white/5 hover:bg-white/10 text-[var(--text-main)] rounded-xl font-bold transition-all"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'admin' | 'management' | 'logs' | 'map' | 'about' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'admin' | 'management' | 'updates' | 'logs' | 'map' | 'about' | 'settings'>('home');
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'verification-sent' | 'complete-profile'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -188,6 +275,7 @@ export default function App() {
     }
   };
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [simulatedRole, setSimulatedRole] = useState<'admin' | 'library officer' | 'user' | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') as 'light' | 'dark' || 'dark';
@@ -583,6 +671,8 @@ export default function App() {
     setAuthMode('login');
   };
 
+  const effectiveRole = (profile?.role === 'admin' && simulatedRole) ? simulatedRole : profile?.role;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -592,161 +682,176 @@ export default function App() {
   }
 
   return (
-    <div className="relative min-h-screen w-full flex bg-[var(--bg-color)] overflow-hidden">
-      {/* Decorative Orbs */}
-      <div className="orb w-[500px] h-[500px] bg-blue-600 top-[-10%] right-[-10%] animate-float" />
-      <div className="orb w-[400px] h-[400px] bg-purple-600 bottom-[10%] left-[-5%] animate-float" style={{ animationDelay: '-5s' }} />
+    <ErrorBoundary>
+      <div className="relative min-h-screen w-full flex bg-[var(--bg-color)] overflow-hidden">
+        {/* Decorative Orbs */}
+        <div className="orb w-[500px] h-[500px] bg-blue-600 top-[-10%] right-[-10%] animate-float" />
+        <div className="orb w-[400px] h-[400px] bg-purple-600 bottom-[10%] left-[-5%] animate-float" style={{ animationDelay: '-5s' }} />
 
-      {!user ? (
-        <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
-          <header className="w-full max-w-md flex items-center justify-between mb-8 z-50">
-            <div className="flex items-center gap-2">
-              <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
-              <span className="text-lg font-bold tracking-tight text-[var(--text-main)]">NEU Library</span>
-            </div>
-            <button 
-              onClick={toggleTheme}
-              className="p-2 rounded-xl bg-[var(--input-bg)] border border-white/10 hover:bg-white/10 transition-all text-[var(--text-main)]"
-            >
-              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-            </button>
-          </header>
-          {authMode === 'login' && (
-            <LoginScreen 
-              onGoogleLogin={handleGoogleLogin} 
-              onEmailLogin={handleLogin}
-              onToggleRegister={() => setAuthMode('register')}
-              error={authError} 
-              isAuthenticating={isAuthenticating}
-            />
-          )}
-          {authMode === 'register' && (
-            <RegisterScreen 
-              onRegister={handleRegister}
-              onToggleLogin={() => setAuthMode('login')}
-              error={authError}
-            />
-          )}
-          {authMode === 'verification-sent' && (
-            <VerificationSentScreen onBackToLogin={() => {
-              signOut(auth);
-              setAuthMode('login');
-            }} />
-          )}
-        </div>
-      ) : user && !user.emailVerified && authMode !== 'verification-sent' ? (
-        <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
-           <VerificationSentScreen onBackToLogin={() => {
-              signOut(auth);
-              setAuthMode('login');
-            }} />
-        </div>
-      ) : !profile || !profile.studentId ? (
-        <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
-          <ProfileSetup user={user} profile={profile} onComplete={() => fetchProfile(user.uid)} />
-        </div>
-      ) : (
-        <>
-          <Sidebar 
-            profile={profile} 
-            activeView={view} 
-            setView={setView} 
-            onLogout={handleLogout} 
-            occupancy={occupancy}
-          />
-          <div className="flex-1 flex flex-col h-screen overflow-hidden">
-            <Header 
-              profile={profile} 
-              theme={theme} 
-              toggleTheme={toggleTheme} 
-              onLogout={handleLogout}
-            />
-            <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 lg:pb-8">
-              <div className="max-w-6xl mx-auto">
-                <AnimatePresence mode="wait">
-                  {view === 'admin' && (
-                    <motion.div
-                      key="admin"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                    >
-                      <AdminAnalytics />
-                    </motion.div>
-                  )}
-                  {view === 'management' && (
-                    <motion.div
-                      key="management"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                    >
-                      <UserManagement currentUserRole={profile.role} />
-                    </motion.div>
-                  )}
-                  {view === 'home' && (
-                    <motion.div
-                      key="home"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                    >
-                      {profile.role === 'admin' || profile.role === 'library officer' ? (
-                        <LibraryOfficerDashboard profile={profile} logSystemActivity={logSystemActivity} />
-                      ) : (
-                        <StudentDashboard profile={profile} onAction={fetchOccupancy} onViewAll={() => setView('logs')} logSystemActivity={logSystemActivity} />
-                      )}
-                    </motion.div>
-                  )}
-                  {view === 'logs' && (
-                    <motion.div
-                      key="logs"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                    >
-                      <UserLogs profile={profile} />
-                    </motion.div>
-                  )}
-                  {view === 'about' && (
-                    <motion.div
-                      key="about"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                    >
-                      <AboutSection />
-                    </motion.div>
-                  )}
-                  {view === 'settings' && (
-                    <motion.div
-                      key="settings"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                    >
-                      <SettingsSection profile={profile} onUpdate={() => fetchProfile(profile.uid)} />
-                    </motion.div>
-                  )}
-                  {view === 'map' && (
-                    <motion.div
-                      key="map"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      className="h-full"
-                    >
-                      <LibraryMap />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+        {!user ? (
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
+            <header className="w-full max-w-md flex items-center justify-between mb-8 z-50">
+              <div className="flex items-center gap-2">
+                <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+                <span className="text-lg font-bold tracking-tight text-[var(--text-main)]">NEU Library</span>
               </div>
-            </main>
+              <button 
+                onClick={toggleTheme}
+                className="p-2 rounded-xl bg-[var(--input-bg)] border border-white/10 hover:bg-white/10 transition-all text-[var(--text-main)]"
+              >
+                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              </button>
+            </header>
+            {authMode === 'login' && (
+              <LoginScreen 
+                onGoogleLogin={handleGoogleLogin} 
+                onEmailLogin={handleLogin}
+                onToggleRegister={() => setAuthMode('register')}
+                error={authError} 
+                isAuthenticating={isAuthenticating}
+              />
+            )}
+            {authMode === 'register' && (
+              <RegisterScreen 
+                onRegister={handleRegister}
+                onToggleLogin={() => setAuthMode('login')}
+                error={authError}
+              />
+            )}
+            {authMode === 'verification-sent' && (
+              <VerificationSentScreen onBackToLogin={() => {
+                signOut(auth);
+                setAuthMode('login');
+              }} />
+            )}
           </div>
-          <MobileNav activeView={view} setView={setView} profile={profile} />
-        </>
-      )}
-    </div>
+        ) : user && !user.emailVerified && authMode !== 'verification-sent' ? (
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
+             <VerificationSentScreen onBackToLogin={() => {
+                signOut(auth);
+                setAuthMode('login');
+              }} />
+          </div>
+        ) : !profile || !profile.college ? (
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
+            <ProfileSetup user={user} profile={profile} onComplete={() => fetchProfile(user.uid)} />
+          </div>
+        ) : (
+          <>
+            <Sidebar 
+              profile={{ ...profile, role: effectiveRole }} 
+              activeView={view} 
+              setView={setView} 
+              onLogout={handleLogout} 
+              occupancy={occupancy}
+            />
+            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+              <Header 
+                profile={{ ...profile, role: effectiveRole }} 
+                theme={theme} 
+                toggleTheme={toggleTheme} 
+                onLogout={handleLogout}
+                actualRole={profile.role}
+                simulatedRole={simulatedRole}
+                onSimulateRole={setSimulatedRole}
+              />
+              <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 lg:pb-8">
+                <div className="max-w-6xl mx-auto">
+                  <AnimatePresence mode="wait">
+                    {view === 'admin' && effectiveRole === 'admin' && (
+                      <motion.div
+                        key="admin"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <AdminAnalytics />
+                      </motion.div>
+                    )}
+                    {view === 'management' && effectiveRole === 'admin' && (
+                      <motion.div
+                        key="management"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <UserManagement currentUserRole={profile.role} />
+                      </motion.div>
+                    )}
+                    {view === 'updates' && effectiveRole === 'admin' && (
+                      <motion.div
+                        key="updates"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <UpdateManagement logSystemActivity={logSystemActivity} />
+                      </motion.div>
+                    )}
+                    {view === 'home' && (
+                      <motion.div
+                        key="home"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        {effectiveRole === 'admin' || effectiveRole === 'library officer' ? (
+                          <LibraryOfficerDashboard profile={{ ...profile, role: effectiveRole }} logSystemActivity={logSystemActivity} />
+                        ) : (
+                          <StudentDashboard profile={{ ...profile, role: effectiveRole }} onAction={fetchOccupancy} onViewAll={() => setView('logs')} logSystemActivity={logSystemActivity} />
+                        )}
+                      </motion.div>
+                    )}
+                    {view === 'logs' && (
+                      <motion.div
+                        key="logs"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <UserLogs profile={{ ...profile, role: effectiveRole }} />
+                      </motion.div>
+                    )}
+                    {view === 'about' && (
+                      <motion.div
+                        key="about"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <AboutSection />
+                      </motion.div>
+                    )}
+                    {view === 'settings' && (
+                      <motion.div
+                        key="settings"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <SettingsSection profile={{ ...profile, role: effectiveRole }} onUpdate={() => fetchProfile(profile.uid)} />
+                      </motion.div>
+                    )}
+                    {view === 'map' && (
+                      <motion.div
+                        key="map"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="h-full"
+                      >
+                        <LibraryMap />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </main>
+            </div>
+            <MobileNav activeView={view} setView={setView} profile={{ ...profile, role: effectiveRole }} />
+          </>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
 
@@ -798,6 +903,12 @@ function Sidebar({
               icon={<Users className="w-5 h-5" />} 
               label="User Management" 
             />
+            <SidebarItem 
+              active={activeView === 'updates'} 
+              onClick={() => setView('updates')} 
+              icon={<Megaphone className="w-5 h-5" />} 
+              label="Library Updates" 
+            />
           </>
         )}
         <SidebarItem 
@@ -827,16 +938,27 @@ function Sidebar({
       </nav>
 
       <div className="mt-auto space-y-6">
-        <div className="p-4 bg-[var(--input-bg)] rounded-2xl border border-white/5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Library Capacity</span>
-            <span className="text-[10px] font-bold">{displayOccupancy} / {capacity}</span>
+        <div className="p-4 bg-white/5 rounded-2xl border border-white/10 shadow-inner">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider">Library Capacity</span>
+            <span className="text-xs font-bold text-blue-400">{displayOccupancy} / {capacity}</span>
           </div>
-          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-blue-500 rounded-full transition-all duration-500" 
+              className={cn(
+                "h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]",
+                percentage > 90 ? "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]" :
+                percentage > 70 ? "bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]" :
+                "bg-blue-500"
+              )}
               style={{ width: `${percentage}%` }}
             />
+          </div>
+          <div className="mt-2 flex justify-between items-center">
+            <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-tighter">
+              {percentage > 90 ? "⚠️ Almost Full" : percentage > 70 ? "📊 Crowded" : "✅ Available"}
+            </span>
+            <span className="text-[10px] text-[var(--text-muted)] font-bold">{Math.round(percentage)}%</span>
           </div>
         </div>
 
@@ -900,6 +1022,12 @@ function MobileNav({
               onClick={() => setView('management')} 
               icon={<Users className="w-5 h-5" />} 
               label="Users" 
+            />
+            <MobileNavItem 
+              active={activeView === 'updates'} 
+              onClick={() => setView('updates')} 
+              icon={<Megaphone className="w-5 h-5" />} 
+              label="Updates" 
             />
             <MobileNavItem 
               active={activeView === 'admin'} 
@@ -1055,7 +1183,25 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
   );
 }
 
-function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfile, theme: string, toggleTheme: () => void, onLogout: () => void }) {
+function Header({ 
+  profile, 
+  theme, 
+  toggleTheme, 
+  onLogout,
+  actualRole,
+  simulatedRole,
+  onSimulateRole
+}: { 
+  profile: UserProfile, 
+  theme: string, 
+  toggleTheme: () => void, 
+  onLogout: () => void,
+  actualRole?: string,
+  simulatedRole?: string | null,
+  onSimulateRole?: (role: any) => void
+}) {
+  const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
+
   return (
     <header className="w-full bg-[var(--glass-bg)]/50 backdrop-blur-md border-b border-[var(--glass-border)] px-4 md:px-8 py-4 flex items-center justify-between z-40">
       <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1066,6 +1212,60 @@ function Header({ profile, theme, toggleTheme, onLogout }: { profile: UserProfil
       </div>
       
       <div className="flex items-center gap-2 md:gap-6 shrink-0 ml-2">
+        {actualRole === 'admin' && onSimulateRole && (
+          <div className="relative hidden md:block">
+            <button 
+              onClick={() => setIsRoleMenuOpen(!isRoleMenuOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold"
+            >
+              <Zap className="w-3 h-3" />
+              {simulatedRole ? `Viewing as ${simulatedRole}` : 'Switch View'}
+            </button>
+            
+            <AnimatePresence>
+              {isRoleMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsRoleMenuOpen(false)} />
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-48 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-2xl shadow-2xl z-50 overflow-hidden p-1"
+                  >
+                    <button 
+                      onClick={() => { onSimulateRole(null); setIsRoleMenuOpen(false); }}
+                      className={cn(
+                        "w-full text-left px-4 py-2 text-xs font-bold rounded-xl transition-colors",
+                        !simulatedRole ? "bg-blue-500 text-white" : "text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5"
+                      )}
+                    >
+                      Default (Admin)
+                    </button>
+                    <button 
+                      onClick={() => { onSimulateRole('library officer'); setIsRoleMenuOpen(false); }}
+                      className={cn(
+                        "w-full text-left px-4 py-2 text-xs font-bold rounded-xl transition-colors",
+                        simulatedRole === 'library officer' ? "bg-blue-500 text-white" : "text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5"
+                      )}
+                    >
+                      Library Officer View
+                    </button>
+                    <button 
+                      onClick={() => { onSimulateRole('user'); setIsRoleMenuOpen(false); }}
+                      className={cn(
+                        "w-full text-left px-4 py-2 text-xs font-bold rounded-xl transition-colors",
+                        simulatedRole === 'user' ? "bg-blue-500 text-white" : "text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5"
+                      )}
+                    >
+                      Student View
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 shrink-0">
           <button 
             onClick={toggleTheme}
@@ -1695,6 +1895,15 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
         </div>
       </div>
 
+      {/* Footer Info */}
+      <div className="pt-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border-t border-white/5">
+        <LibraryUpdates />
+        <div className="text-right">
+          <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase">Visitor System v2.4</p>
+          <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase">© 2024 NEU Library</p>
+        </div>
+      </div>
+
       {/* Add/Edit User Modal */}
       {(isAddingUser || editingUser) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -1780,6 +1989,306 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
               >
                 {isAddingUser ? 'Create User' : 'Save Changes'}
               </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LibraryUpdates() {
+  const [updates, setUpdates] = useState<LibraryUpdate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'library_updates'),
+      orderBy('timestamp', 'desc'),
+      limit(5)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      setUpdates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryUpdate)));
+      setLoading(false);
+    }, (err: any) => {
+      if (err.code === 'permission-denied' && !auth.currentUser) {
+        return;
+      }
+      handleFirestoreError(err, OperationType.LIST, 'library_updates');
+      setLoading(false);
+    });
+
+    return unsub;
+  }, []);
+
+  if (loading) {
+    return <div className="animate-pulse h-10 bg-white/5 rounded-xl w-full"></div>;
+  }
+
+  if (updates.length === 0) {
+    return (
+      <div className="space-y-2">
+        <h4 className="text-sm font-bold text-blue-400">Library Updates</h4>
+        <p className="text-xs text-[var(--text-muted)] max-w-md">
+          No recent updates. Check back later for library announcements.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-bold text-blue-400">Library Updates</h4>
+      <div className="space-y-3">
+        {updates.map((update) => (
+          <div key={update.id} className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h5 className="text-xs font-bold text-[var(--text-main)]">{update.title}</h5>
+              {update.priority === 'high' && (
+                <span className="px-1.5 py-0.5 bg-red-500/10 text-red-500 text-[8px] font-bold uppercase rounded-md border border-red-500/20">Urgent</span>
+              )}
+            </div>
+            <p className="text-xs text-[var(--text-muted)] max-w-md leading-relaxed">
+              {update.content}
+            </p>
+            <p className="text-[9px] text-[var(--text-muted)] font-medium">
+              {update.timestamp?.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UpdateManagement({ logSystemActivity }: { logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
+  const [updates, setUpdates] = useState<LibraryUpdate[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUpdate, setEditingUpdate] = useState<LibraryUpdate | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    priority: 'low' as 'low' | 'medium' | 'high'
+  });
+
+  useEffect(() => {
+    const q = query(collection(db, 'library_updates'), orderBy('timestamp', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setUpdates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryUpdate)));
+      setLoading(false);
+    }, (err: any) => {
+      if (err.code === 'permission-denied' && !auth.currentUser) {
+        return;
+      }
+      handleFirestoreError(err, OperationType.LIST, 'library_updates');
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      if (editingUpdate) {
+        await updateDoc(doc(db, 'library_updates', editingUpdate.id!), {
+          ...formData,
+          timestamp: serverTimestamp()
+        });
+        await logSystemActivity({
+          type: 'edit_update',
+          details: `Updated library announcement: ${formData.title}`
+        });
+      } else {
+        await addDoc(collection(db, 'library_updates'), {
+          ...formData,
+          timestamp: serverTimestamp()
+        });
+        await logSystemActivity({
+          type: 'add_update',
+          details: `Added new library announcement: ${formData.title}`
+        });
+        // Notify all users about the new update
+        await notifyAllUsers(
+          'New Library Update',
+          formData.title,
+          formData.priority === 'high' ? 'error' : formData.priority === 'medium' ? 'warning' : 'info'
+        );
+      }
+      setIsModalOpen(false);
+      setEditingUpdate(null);
+      setFormData({ title: '', content: '', priority: 'low' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'library_updates');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (update: LibraryUpdate) => {
+    if (!confirm('Are you sure you want to delete this update?')) return;
+    try {
+      await deleteDoc(doc(db, 'library_updates', update.id!));
+      await logSystemActivity({
+        type: 'delete_update',
+        details: `Deleted library announcement: ${update.title}`
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `library_updates/${update.id}`);
+    }
+  };
+
+  const openEdit = (update: LibraryUpdate) => {
+    setEditingUpdate(update);
+    setFormData({
+      title: update.title,
+      content: update.content,
+      priority: update.priority
+    });
+    setIsModalOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Library Updates Management</h2>
+          <p className="text-sm text-[var(--text-muted)]">Manage announcements shown to all visitors and officers.</p>
+        </div>
+        <button 
+          onClick={() => {
+            setEditingUpdate(null);
+            setFormData({ title: '', content: '', priority: 'low' });
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20"
+        >
+          <Plus className="w-5 h-5" />
+          New Update
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : updates.length === 0 ? (
+          <div className="glass-card p-12 text-center text-[var(--text-muted)]">No updates found.</div>
+        ) : (
+          updates.map((update) => (
+            <div key={update.id} className="glass-card p-6 flex items-start gap-4 hover:bg-white/5 transition-colors group">
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
+                update.priority === 'high' ? "bg-red-500/10 text-red-500" :
+                update.priority === 'medium' ? "bg-yellow-500/10 text-yellow-500" :
+                "bg-blue-500/10 text-blue-500"
+              )}>
+                <Megaphone className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-1">
+                  <h3 className="font-bold text-lg truncate">{update.title}</h3>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border",
+                    update.priority === 'high' ? "bg-red-500/10 text-red-500 border-red-500/20" :
+                    update.priority === 'medium' ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" :
+                    "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                  )}>
+                    {update.priority}
+                  </span>
+                </div>
+                <p className="text-sm text-[var(--text-muted)] mb-2 line-clamp-2">{update.content}</p>
+                <p className="text-xs text-[var(--text-muted)] font-medium">
+                  Posted on {update.timestamp?.toDate().toLocaleString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => openEdit(update)}
+                  className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                >
+                  <Edit2 className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => handleDelete(update)}
+                  className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[var(--bg-color)] border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+          >
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+              <h3 className="text-xl font-bold">{editingUpdate ? 'Edit Update' : 'New Library Update'}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">Title</label>
+                <input 
+                  required
+                  value={formData.title}
+                  onChange={e => setFormData({...formData, title: e.target.value})}
+                  placeholder="Update title"
+                  className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">Priority</label>
+                <select 
+                  value={formData.priority}
+                  onChange={e => setFormData({...formData, priority: e.target.value as any})}
+                  className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm appearance-none"
+                >
+                  <option value="low" className="text-black">Low Priority</option>
+                  <option value="medium" className="text-black">Medium Priority</option>
+                  <option value="high" className="text-black">High Priority</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">Content</label>
+                <textarea 
+                  required
+                  rows={4}
+                  value={formData.content}
+                  onChange={e => setFormData({...formData, content: e.target.value})}
+                  placeholder="Update content..."
+                  className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm resize-none"
+                />
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-[var(--text-main)] font-bold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-2 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                >
+                  {submitting ? 'Saving...' : editingUpdate ? 'Update' : 'Post Update'}
+                </button>
+              </div>
             </form>
           </motion.div>
         </div>
@@ -2041,12 +2550,7 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
 
       {/* Footer Info */}
       <div className="pt-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border-t border-white/5">
-        <div className="space-y-2">
-          <h4 className="text-sm font-bold text-blue-400">Library Updates</h4>
-          <p className="text-xs text-[var(--text-muted)] max-w-md">
-            The 4th floor Quiet Zone is currently under renovation. Study rooms are available by reservation.
-          </p>
-        </div>
+        <LibraryUpdates />
         <div className="text-right">
           <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase">Visitor System v2.4</p>
           <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase">© 2024 NEU Library</p>
@@ -2291,7 +2795,7 @@ function RegisterScreen({ onRegister, onToggleLogin, error }: {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">Student/Employee ID</label>
+            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">Student/Employee ID (Optional)</label>
             <div className="relative">
               <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
               <input 
@@ -2300,7 +2804,6 @@ function RegisterScreen({ onRegister, onToggleLogin, error }: {
                 placeholder="e.g. 23-12558-550"
                 pattern="\d{2}-\d{5}-\d{3}"
                 title="Student ID must be in the format **-*****-*** (e.g., 23-12558-550)"
-                required
                 className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm"
               />
             </div>
@@ -2317,8 +2820,8 @@ function RegisterScreen({ onRegister, onToggleLogin, error }: {
                 required
                 className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm appearance-none"
               >
-                <option value="" disabled>Select your college</option>
-                {COLLEGES.map(c => <option key={c} value={c} className="bg-[var(--bg-color)]">{c}</option>)}
+                <option value="" disabled className="text-black">Select your college</option>
+                {COLLEGES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
               </select>
             </div>
           </div>
@@ -2435,7 +2938,7 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!college || !studentId) return;
+    if (!college) return;
     setSubmitting(true);
     try {
       const newProfile: Partial<UserProfile> = {
@@ -2493,7 +2996,7 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-[var(--text-main)]/80">Student/Employee ID</label>
+            <label className="text-sm font-medium text-[var(--text-main)]/80">Student/Employee ID (Optional)</label>
             <div className="relative">
               <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
               <input 
@@ -2502,7 +3005,6 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
                 placeholder="e.g. 23-12558-550"
                 pattern="\d{2}-\d{5}-\d{3}"
                 title="Student ID must be in the format **-*****-*** (e.g., 23-12558-550)"
-                required
                 className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm"
               />
             </div>
@@ -2517,16 +3019,16 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
               className="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl p-3 text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               required
             >
-              <option value="" disabled className="bg-[var(--bg-color)]">Choose one...</option>
+              <option value="" disabled className="text-black">Choose one...</option>
               {COLLEGES.map(c => (
-                <option key={c} value={c} className="bg-[var(--bg-color)]">{c}</option>
+                <option key={c} value={c} className="text-black">{c}</option>
               ))}
             </select>
           </div>
 
           <button
             type="submit"
-            disabled={submitting || !college || !studentId}
+            disabled={submitting || !college}
             className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
           >
             {submitting ? 'Saving...' : 'Complete Setup'}
@@ -2587,9 +3089,9 @@ function UserLogs({ profile }: { profile: UserProfile }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">{isDirector ? 'System Activity' : 'Visit History'}</h2>
+        <h2 className="text-2xl font-bold">{isStaff ? 'System Activity' : 'Visit History'}</h2>
         <div className="px-3 py-1 bg-[var(--input-bg)] rounded-full text-xs font-bold text-[var(--text-muted)]">
-          {isDirector ? 'Last 100 activities' : 'Last 100 entries'}
+          {isStaff ? 'Last 100 activities' : 'Last 100 entries'}
         </div>
       </div>
 

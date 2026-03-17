@@ -57,7 +57,7 @@
       "description": "A record of a system-wide activity.",
       "type": "object",
       "properties": {
-        "type": { "type": "string", "enum": ["entry", "exit", "add_user", "delete_user", "block_user", "unblock_user", "edit_user"] },
+        "type": { "type": "string", "enum": ["entry", "exit", "add_user", "delete_user", "block_user", "unblock_user", "edit_user", "add_update", "edit_update", "delete_update"] },
         "actorId": { "type": "string" },
         "actorName": { "type": "string" },
         "targetId": { "type": "string" },
@@ -66,6 +66,18 @@
         "timestamp": { "type": "object" }
       },
       "required": ["type", "actorId", "actorName", "timestamp"]
+    },
+    "LibraryUpdate": {
+      "title": "Library Update",
+      "description": "An announcement or update from the library.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "object" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+      },
+      "required": ["title", "content", "timestamp", "priority"]
     }
   },
   "firestore": {
@@ -88,6 +100,10 @@
     "system_activities/{activityId}": {
       "schema": "SystemActivity",
       "description": "Global audit log of system actions"
+    },
+    "library_updates/{updateId}": {
+      "schema": "LibraryUpdate",
+      "description": "Library announcements and updates"
     }
   }
 }

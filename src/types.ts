@@ -31,13 +31,21 @@ export interface AppNotification {
 
 export interface SystemActivity {
   id?: string;
-  type: 'entry' | 'exit' | 'add_user' | 'delete_user' | 'block_user' | 'unblock_user' | 'edit_user';
+  type: 'entry' | 'exit' | 'add_user' | 'delete_user' | 'block_user' | 'unblock_user' | 'edit_user' | 'add_update' | 'edit_update' | 'delete_update';
   actorId: string;
   actorName: string;
   targetId?: string;
   targetName?: string;
   details?: string;
   timestamp: any;
+}
+
+export interface LibraryUpdate {
+  id?: string;
+  title: string;
+  content: string;
+  timestamp: any;
+  priority: 'low' | 'medium' | 'high';
 }
 
 export const COLLEGES = [
