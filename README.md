@@ -4,7 +4,8 @@ Welcome to the **NEU Library Visitor Portal**! This is a modern, full-stack web 
 
 ✨ **[Try the App Live Here!](https://remix-neu-library-visitor-app-230692279419.us-west1.run.app)** ✨
 
-![System Preview](https://github.com/JLNerecina/NEU-MOA-Monitoring-System/blob/main/public/NEU%20MOA%20Monitoring%20System%20Preview.png)
+![System Preview](https://github.com/JLNerecina/NEU-Library-Visitor-App/blob/main/public/NEU%20Library%20Visitor%20App%20Preview%201.png) 
+![System Preview](https://github.com/JLNerecina/NEU-Library-Visitor-App/blob/main/public/NEU%20Library%20Visitor%20App%20Preview%201.png) 
 ---
 
 ## 🌟 Features
