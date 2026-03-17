@@ -294,46 +294,58 @@ export default function App() {
       const docSnap = await getDoc(docRef);
       
       let currentProfile: UserProfile | null = null;
-
       if (docSnap.exists()) {
         currentProfile = docSnap.data() as UserProfile;
       }
 
       // Check for pre-added user by email to handle migration or merging
       if (auth.currentUser?.email) {
-        const q = query(collection(db, 'users'), where('email', '==', auth.currentUser.email));
-        const querySnap = await getDocs(q);
-        
-        // Find if there's a manually added entry (ID starts with manual-)
-        const manualDoc = querySnap.docs.find(d => d.id.startsWith('manual-'));
-        
-        if (manualDoc) {
-          const manualData = manualDoc.data() as UserProfile;
+        try {
+          let manualDoc: any = null;
           
-          if (currentProfile) {
-            // Merge: If a UID-based profile already exists, update it with the admin-assigned role and info
-            const mergedProfile: UserProfile = {
-              ...currentProfile,
-              role: manualData.role || currentProfile.role,
-              college: manualData.college || currentProfile.college,
-              studentId: manualData.studentId || currentProfile.studentId,
-              name: manualData.name || currentProfile.name,
-            };
-            await setDoc(docRef, mergedProfile);
-            currentProfile = mergedProfile;
+          // 1. Try direct lookup by email-based ID (new system)
+          const manualDocRef = doc(db, 'users', `manual:${auth.currentUser.email}`);
+          const manualDocSnap = await getDoc(manualDocRef);
+          if (manualDocSnap.exists()) {
+            manualDoc = manualDocSnap;
           } else {
-            // Migrate: If no UID-based profile exists, create one from the manual data
-            const migratedProfile: UserProfile = {
-              ...manualData,
-              uid: uid,
-              photoURL: auth.currentUser.photoURL || manualData.photoURL
-            };
-            await setDoc(docRef, migratedProfile);
-            currentProfile = migratedProfile;
+            // 2. Fallback to query (old system) - might fail due to permissions
+            const q = query(collection(db, 'users'), where('email', '==', auth.currentUser.email), limit(5));
+            const querySnap = await getDocs(q);
+            manualDoc = querySnap.docs.find(d => d.id.startsWith('manual-'));
           }
           
-          // Delete the manual entry to prevent duplicates
-          await deleteDoc(manualDoc.ref);
+          if (manualDoc) {
+            const manualData = manualDoc.data() as UserProfile;
+            
+            if (currentProfile) {
+              // Merge: If a UID-based profile already exists, update it with the admin-assigned role and info
+              const mergedProfile: UserProfile = {
+                ...currentProfile,
+                role: manualData.role || currentProfile.role,
+                college: manualData.college || currentProfile.college,
+                studentId: manualData.studentId || currentProfile.studentId,
+                name: manualData.name || currentProfile.name,
+              };
+              await setDoc(docRef, mergedProfile);
+              currentProfile = mergedProfile;
+            } else {
+              // Migrate: If no UID-based profile exists, create one from the manual data
+              const migratedProfile: UserProfile = {
+                ...manualData,
+                uid: uid,
+                photoURL: auth.currentUser.photoURL || manualData.photoURL
+              };
+              await setDoc(docRef, migratedProfile);
+              currentProfile = migratedProfile;
+            }
+            
+            // Delete the manual entry to prevent duplicates
+            await deleteDoc(manualDoc.ref);
+          }
+        } catch (migrationErr) {
+          console.error("Migration check failed (likely permissions):", migrationErr);
+          // We continue with currentProfile if it exists
         }
       }
 
@@ -439,6 +451,25 @@ export default function App() {
     setAuthError(null);
     try {
       const { studentId, college } = data;
+      
+      // Final check for manual entries before creating a new profile
+      let initialRole: UserProfile['role'] = 'user';
+      if (user.email === ADMIN_EMAIL) initialRole = 'admin';
+      else if (user.email === OFFICER_EMAIL) initialRole = 'library officer';
+
+      try {
+        const q = query(collection(db, 'users'), where('email', '==', user.email), limit(5));
+        const querySnap = await getDocs(q);
+        const manualDoc = querySnap.docs.find(d => d.id.startsWith('manual') || d.id.includes(':'));
+        if (manualDoc) {
+          const manualData = manualDoc.data() as UserProfile;
+          initialRole = manualData.role || initialRole;
+          await deleteDoc(manualDoc.ref);
+        }
+      } catch (e) {
+        console.error("Final migration check failed:", e);
+      }
+
       const newProfile: UserProfile = {
         uid: user.uid,
         email: user.email!,
@@ -446,7 +477,7 @@ export default function App() {
         college: college,
         studentId: studentId,
         isBlocked: false,
-        role: user.email === ADMIN_EMAIL ? 'admin' : (user.email === OFFICER_EMAIL ? 'library officer' : 'user')
+        role: initialRole
       };
       
       await setDoc(doc(db, 'users', user.uid), newProfile);
@@ -1030,13 +1061,11 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     
     try {
       if (isAddingUser) {
-        // For manual add, we'd normally need a UID from Auth, but for this app's logic, 
-        // we'll just create a doc. In a real app, you'd use Firebase Admin or a cloud function.
-        // For this demo, we'll use a random ID.
-        const tempUid = `manual-${Date.now()}`;
+        // Use an email-based ID for manual entries to allow direct lookup without collection listing
+        const tempUid = `manual:${newUserForm.email.toLowerCase()}`;
         const newUser: UserProfile = {
           uid: tempUid,
-          email: newUserForm.email,
+          email: newUserForm.email.toLowerCase(),
           name: newUserForm.name,
           college: newUserForm.college,
           studentId: newUserForm.studentId,
@@ -2311,9 +2340,16 @@ function BlockedScreen({ onLogout }: { onLogout: () => void }) {
 }
 
 function ProfileSetup({ user, profile, onComplete }: { user: User, profile: UserProfile | null, onComplete: () => void }) {
-  const [college, setCollege] = useState('');
-  const [studentId, setStudentId] = useState('');
+  const [college, setCollege] = useState(profile?.college || '');
+  const [studentId, setStudentId] = useState(profile?.studentId || '');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      if (profile.college) setCollege(profile.college);
+      if (profile.studentId) setStudentId(profile.studentId);
+    }
+  }, [profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
