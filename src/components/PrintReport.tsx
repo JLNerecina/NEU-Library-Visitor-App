@@ -14,8 +14,8 @@ const PrintReport = React.forwardRef<HTMLDivElement, PrintReportProps>(({ logs, 
   return (
     <div ref={ref} className="p-12 bg-white text-black min-h-screen">
       <div className="text-center mb-8">
-        <Library className="w-16 h-16 mx-auto text-teal-800 mb-4" />
-        <h1 className="text-2xl font-bold text-teal-900">NEU LIBRARY</h1>
+        <Library className="w-16 h-16 mx-auto text-blue-800 mb-4" />
+        <h1 className="text-2xl font-bold text-blue-900">NEU LIBRARY</h1>
         <h2 className="text-3xl font-bold mt-2">Library Visitor Report</h2>
         <p className="text-sm text-gray-500 uppercase mt-1">Reporting Period</p>
         <p className="font-semibold">{startDate || 'Start'} - {endDate || 'End'}</p>

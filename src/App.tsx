@@ -292,29 +292,72 @@ export default function App() {
     try {
       const docRef = doc(db, 'users', uid);
       const docSnap = await getDoc(docRef);
+      
+      let currentProfile: UserProfile | null = null;
+
       if (docSnap.exists()) {
-        let data = docSnap.data() as UserProfile;
+        currentProfile = docSnap.data() as UserProfile;
+      }
+
+      // Check for pre-added user by email to handle migration or merging
+      if (auth.currentUser?.email) {
+        const q = query(collection(db, 'users'), where('email', '==', auth.currentUser.email));
+        const querySnap = await getDocs(q);
         
+        // Find if there's a manually added entry (ID starts with manual-)
+        const manualDoc = querySnap.docs.find(d => d.id.startsWith('manual-'));
+        
+        if (manualDoc) {
+          const manualData = manualDoc.data() as UserProfile;
+          
+          if (currentProfile) {
+            // Merge: If a UID-based profile already exists, update it with the admin-assigned role and info
+            const mergedProfile: UserProfile = {
+              ...currentProfile,
+              role: manualData.role || currentProfile.role,
+              college: manualData.college || currentProfile.college,
+              studentId: manualData.studentId || currentProfile.studentId,
+              name: manualData.name || currentProfile.name,
+            };
+            await setDoc(docRef, mergedProfile);
+            currentProfile = mergedProfile;
+          } else {
+            // Migrate: If no UID-based profile exists, create one from the manual data
+            const migratedProfile: UserProfile = {
+              ...manualData,
+              uid: uid,
+              photoURL: auth.currentUser.photoURL || manualData.photoURL
+            };
+            await setDoc(docRef, migratedProfile);
+            currentProfile = migratedProfile;
+          }
+          
+          // Delete the manual entry to prevent duplicates
+          await deleteDoc(manualDoc.ref);
+        }
+      }
+
+      if (currentProfile) {
         // Sync photoURL if missing and available in auth
-        if (!data.photoURL && auth.currentUser?.photoURL) {
-          data.photoURL = auth.currentUser.photoURL;
-          await updateDoc(docRef, { photoURL: data.photoURL });
+        if (!currentProfile.photoURL && auth.currentUser?.photoURL) {
+          currentProfile.photoURL = auth.currentUser.photoURL;
+          await updateDoc(docRef, { photoURL: currentProfile.photoURL });
         }
 
         // Auto-upgrade role for specific emails if needed
-        if (data.email === ADMIN_EMAIL && data.role !== 'admin') {
-          data.role = 'admin';
+        if (currentProfile.email === ADMIN_EMAIL && currentProfile.role !== 'admin') {
+          currentProfile.role = 'admin';
           await updateDoc(docRef, { role: 'admin' });
-        } else if (data.email === OFFICER_EMAIL && data.role !== 'library officer') {
-          data.role = 'library officer';
+        } else if (currentProfile.email === OFFICER_EMAIL && currentProfile.role !== 'library officer') {
+          currentProfile.role = 'library officer';
           await updateDoc(docRef, { role: 'library officer' });
         }
-        setProfile(data);
-        return data;
-      } else {
-        setProfile(null);
-        return null;
+        setProfile(currentProfile);
+        return currentProfile;
       }
+
+      setProfile(null);
+      return null;
     } catch (err) {
       console.error("Error fetching profile:", err);
       return null;

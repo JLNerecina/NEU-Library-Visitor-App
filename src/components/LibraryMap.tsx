@@ -4,12 +4,12 @@ import { MapPin, BookOpen, Info, Search } from 'lucide-react';
 const LibraryMap: React.FC = () => {
   const [activeLevel, setActiveLevel] = useState('Level 1 (Main)');
   
-  const neuGreen = '#2D7D68'; // Darker green
-  const academicYellow = '#EAB308'; // Darker yellow
-  const bgDark = '#0F172A'; // Dark background
-  const panelDark = '#1E293B'; // Panel background
+  const accentBlue = '#3b82f6'; 
+  const secondaryBlue = '#60a5fa'; 
+  const bgDark = '#0a1111'; // Match AdminAnalytics background
+  const panelDark = '#1a2626'; // Match AdminAnalytics panel
 
-  const levels = ['Level 3', 'Level 2', 'Level 1 (Main)', 'Basement'];
+  const levels = ['Level 2', 'Level 1 (Main)'];
 
   return (
     <div className="p-4 md:p-8 min-h-screen" style={{ backgroundColor: bgDark, color: 'white' }}>
@@ -39,9 +39,9 @@ const LibraryMap: React.FC = () => {
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Legend</h3>
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-blue-500"></div> Study Zones</div>
-              <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full" style={{ backgroundColor: neuGreen }}></div> Book Stacks</div>
-              <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full" style={{ backgroundColor: academicYellow }}></div> Tech Center</div>
-              <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-red-400"></div> Restrooms</div>
+              <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full" style={{ backgroundColor: accentBlue }}></div> Book Stacks</div>
+              <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full" style={{ backgroundColor: secondaryBlue }}></div> Tech Center</div>
+              <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-indigo-400"></div> Restrooms</div>
             </div>
           </div>
         </div>
