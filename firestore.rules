@@ -46,18 +46,25 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        ((request.auth.token.email in ["johnliannerecina@gmail.com", "johnlian.nerecina@neu.edu.ph"] && request.auth.token.email_verified == true) ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'library officer']));
+      let email = request.auth.token.email.lower();
+      return isAuthenticated() && request.auth.token.email != null && (
+        (email in ["johnliannerecina@gmail.com", "johnlian.nerecina@neu.edu.ph"] && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'library officer']) ||
+        (exists(/databases/$(database)/documents/users/$( "manual:" + email )) &&
+         get(/databases/$(database)/documents/users/$( "manual:" + email )).data.role in ['admin', 'library officer']) ||
+        (exists(/databases/$(database)/documents/pre_authorized_roles/$( email )) &&
+         get(/databases/$(database)/documents/pre_authorized_roles/$( email )).data.role in ['admin', 'library officer'])
+      );
     }
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'name', 'college', 'isBlocked']) &&
              data.uid is string && data.uid.size() > 0 &&
-             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.email is string && data.email.lower().matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.college is string && data.college.size() > 0 &&
+             (!('studentId' in data) || data.studentId is string) &&
              data.isBlocked is bool &&
              (!('role' in data) || data.role in ['admin', 'user', 'library officer']);
     }
@@ -78,13 +85,21 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
+      // Allow reading own profile or if admin
+      allow get: if isOwner(userId) || isAdmin() || 
+                   (isAuthenticated() && request.auth.token.email != null && userId == "manual:" + request.auth.token.email.lower()) ||
+                   (isAuthenticated() && request.auth.token.email != null && resource != null && resource.data.email.lower() == request.auth.token.email.lower());
+      
+      allow list: if isAuthenticated() && 
+                    (isAdmin() || (request.auth.token.email != null && resource.data.email == request.auth.token.email));
+
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
                     (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user') || isAdmin());
+      
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
                     ((isOwner(userId) && request.resource.data.role == resource.data.role && request.resource.data.isBlocked == resource.data.isBlocked) || isAdmin());
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
-      allow list: if isAuthenticated(); // Safe because individual document read is still restricted
+      
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.token.email != null && (userId == "manual:" + request.auth.token.email.lower() || userId == "manual-" + request.auth.token.email.lower()));
     }
 
     match /visitLogs/{logId} {
@@ -110,6 +125,11 @@ service cloud.firestore {
     match /system_activities/{activityId} {
       allow read: if isAdmin();
       allow create: if isAuthenticated();
+    }
+
+    match /pre_authorized_roles/{email} {
+      allow read: if isAuthenticated() && request.auth.token.email != null && (isAdmin() || email.lower() == request.auth.token.email.lower());
+      allow write: if isAdmin();
     }
   }
 }

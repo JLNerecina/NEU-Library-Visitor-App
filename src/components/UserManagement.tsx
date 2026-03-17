@@ -6,7 +6,10 @@ import { Search, ShieldBan, ShieldCheck, Users, Edit2, Trash2, X } from 'lucide-
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
+import PreAuthorizedEmails from './PreAuthorizedEmails';
+
 export default function UserManagement({ currentUserRole }: { currentUserRole?: string }) {
+  const [activeTab, setActiveTab] = useState<'users' | 'preauth'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,7 +29,13 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
       setUsers(fetchedUsers);
       setLoading(false);
     }, (err) => {
-      console.error(err);
+      // If we get a permission error, it's likely because the user is not an admin yet
+      // or their role hasn't been synced to the database.
+      if (err.code === 'permission-denied') {
+        console.warn("UserManagement: Access denied. User may not have admin privileges yet.");
+      } else {
+        console.error("UserManagement Error:", err);
+      }
       setLoading(false);
     });
     return unsub;
@@ -85,8 +94,35 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
   );
 
   return (
-    <div className="glass-card overflow-hidden">
-      <div className="p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex gap-2 p-1 bg-[var(--input-bg)] rounded-2xl w-fit border border-white/5">
+        <button 
+          onClick={() => setActiveTab('users')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            activeTab === 'users' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+          )}
+        >
+          User Directory
+        </button>
+        <button 
+          onClick={() => setActiveTab('preauth')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            activeTab === 'preauth' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+          )}
+        >
+          Pre-authorized Roles
+        </button>
+      </div>
+
+      {activeTab === 'preauth' ? (
+        <div className="glass-card p-8">
+          <PreAuthorizedEmails />
+        </div>
+      ) : (
+        <div className="glass-card overflow-hidden">
+          <div className="p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h3 className="text-xl font-bold flex items-center gap-2">
           <Users className="w-6 h-6 text-blue-400" />
           User Management
@@ -190,6 +226,9 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
           </tbody>
         </table>
       </div>
+
+        </div>
+      )}
 
       {/* Edit User Modal */}
       {editingUser && (

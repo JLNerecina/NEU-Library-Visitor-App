@@ -300,19 +300,23 @@ export default function App() {
 
       // Check for pre-added user by email to handle migration or merging
       if (auth.currentUser?.email) {
+        const userEmail = auth.currentUser.email.toLowerCase();
+        const exactEmail = auth.currentUser.email; // Use exact email for query matching rules
         try {
           let manualDoc: any = null;
           
           // 1. Try direct lookup by email-based ID (new system)
-          const manualDocRef = doc(db, 'users', `manual:${auth.currentUser.email}`);
+          // The security rules now specifically allow this ID-based lookup for the owner
+          const manualDocRef = doc(db, 'users', `manual:${userEmail}`);
           const manualDocSnap = await getDoc(manualDocRef);
           if (manualDocSnap.exists()) {
             manualDoc = manualDocSnap;
           } else {
-            // 2. Fallback to query (old system) - might fail due to permissions
-            const q = query(collection(db, 'users'), where('email', '==', auth.currentUser.email), limit(5));
+            // 2. Fallback to query (old system)
+            // Query must match the security rule 'resource.data.email == request.auth.token.email'
+            const q = query(collection(db, 'users'), where('email', '==', exactEmail), limit(1));
             const querySnap = await getDocs(q);
-            manualDoc = querySnap.docs.find(d => d.id.startsWith('manual-'));
+            manualDoc = querySnap.docs.find(d => d.id.startsWith('manual-') || d.id.startsWith('manual:'));
           }
           
           if (manualDoc) {
@@ -342,6 +346,32 @@ export default function App() {
             
             // Delete the manual entry to prevent duplicates
             await deleteDoc(manualDoc.ref);
+          } else {
+            // 3. Check for pre-authorized roles (new system)
+            const preAuthRef = doc(db, 'pre_authorized_roles', userEmail);
+            const preAuthSnap = await getDoc(preAuthRef);
+            if (preAuthSnap.exists()) {
+              const preAuthData = preAuthSnap.data() as { email: string, role: UserProfile['role'] };
+              if (currentProfile) {
+                if (currentProfile.role !== preAuthData.role) {
+                  const updatedProfile = { ...currentProfile, role: preAuthData.role };
+                  await updateDoc(docRef, { role: preAuthData.role });
+                  currentProfile = updatedProfile;
+                }
+              } else {
+                const newProfile: UserProfile = {
+                  uid: uid,
+                  email: auth.currentUser.email!,
+                  name: auth.currentUser.displayName || 'Anonymous',
+                  college: 'Not Specified',
+                  isBlocked: false,
+                  role: preAuthData.role,
+                  photoURL: auth.currentUser.photoURL || undefined
+                };
+                await setDoc(docRef, newProfile);
+                currentProfile = newProfile;
+              }
+            }
           }
         } catch (migrationErr) {
           console.error("Migration check failed (likely permissions):", migrationErr);
@@ -424,7 +454,40 @@ export default function App() {
     try {
       const { email, password, fullName, studentId, college } = data;
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userEmail = email.toLowerCase();
       
+      // Check for migration immediately
+      let initialRole: UserProfile['role'] = 'user';
+      if (userEmail === ADMIN_EMAIL.toLowerCase()) initialRole = 'admin';
+      else if (userEmail === OFFICER_EMAIL.toLowerCase()) initialRole = 'library officer';
+
+      try {
+        const manualDocRef = doc(db, 'users', `manual:${userEmail}`);
+        const manualDocSnap = await getDoc(manualDocRef);
+        if (manualDocSnap.exists()) {
+          initialRole = (manualDocSnap.data() as UserProfile).role || initialRole;
+          await deleteDoc(manualDocSnap.ref);
+        } else {
+          // Check pre-authorized roles
+          const preAuthRef = doc(db, 'pre_authorized_roles', userEmail);
+          const preAuthSnap = await getDoc(preAuthRef);
+          if (preAuthSnap.exists()) {
+            initialRole = (preAuthSnap.data() as { role: UserProfile['role'] }).role || initialRole;
+          } else {
+            // Fallback to query
+            const q = query(collection(db, 'users'), where('email', '==', email), limit(1));
+            const querySnap = await getDocs(q);
+            const manualDoc = querySnap.docs.find(d => d.id.startsWith('manual') || d.id.includes(':'));
+            if (manualDoc) {
+              initialRole = (manualDoc.data() as UserProfile).role || initialRole;
+              await deleteDoc(manualDoc.ref);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Registration migration check failed:", e);
+      }
+
       // Create profile immediately
       const newProfile: UserProfile = {
         uid: userCredential.user.uid,
@@ -433,7 +496,7 @@ export default function App() {
         college: college,
         studentId: studentId,
         isBlocked: false,
-        role: email === ADMIN_EMAIL ? 'admin' : (email === OFFICER_EMAIL ? 'library officer' : 'user')
+        role: initialRole
       };
       
       await setDoc(doc(db, 'users', userCredential.user.uid), newProfile);
@@ -449,22 +512,41 @@ export default function App() {
   const handleCompleteProfile = async (data: any) => {
     if (!user) return;
     setAuthError(null);
+    const userEmail = user.email!.toLowerCase();
     try {
       const { studentId, college } = data;
       
       // Final check for manual entries before creating a new profile
       let initialRole: UserProfile['role'] = 'user';
-      if (user.email === ADMIN_EMAIL) initialRole = 'admin';
-      else if (user.email === OFFICER_EMAIL) initialRole = 'library officer';
+      if (userEmail === ADMIN_EMAIL.toLowerCase()) initialRole = 'admin';
+      else if (userEmail === OFFICER_EMAIL.toLowerCase()) initialRole = 'library officer';
 
       try {
-        const q = query(collection(db, 'users'), where('email', '==', user.email), limit(5));
-        const querySnap = await getDocs(q);
-        const manualDoc = querySnap.docs.find(d => d.id.startsWith('manual') || d.id.includes(':'));
-        if (manualDoc) {
-          const manualData = manualDoc.data() as UserProfile;
+        // Try direct lookup first
+        const manualDocRef = doc(db, 'users', `manual:${userEmail}`);
+        const manualDocSnap = await getDoc(manualDocRef);
+        
+        if (manualDocSnap.exists()) {
+          const manualData = manualDocSnap.data() as UserProfile;
           initialRole = manualData.role || initialRole;
-          await deleteDoc(manualDoc.ref);
+          await deleteDoc(manualDocSnap.ref);
+        } else {
+          // Check pre-authorized roles
+          const preAuthRef = doc(db, 'pre_authorized_roles', userEmail);
+          const preAuthSnap = await getDoc(preAuthRef);
+          if (preAuthSnap.exists()) {
+            initialRole = (preAuthSnap.data() as { role: UserProfile['role'] }).role || initialRole;
+          } else {
+            // Fallback to query
+            const q = query(collection(db, 'users'), where('email', '==', user.email), limit(1));
+            const querySnap = await getDocs(q);
+            const manualDoc = querySnap.docs.find(d => d.id.startsWith('manual') || d.id.includes(':'));
+            if (manualDoc) {
+              const manualData = manualDoc.data() as UserProfile;
+              initialRole = manualData.role || initialRole;
+              await deleteDoc(manualDoc.ref);
+            }
+          }
         }
       } catch (e) {
         console.error("Final migration check failed:", e);
@@ -2367,12 +2449,27 @@ function ProfileSetup({ user, profile, onComplete }: { user: User, profile: User
       
       if (!profile) {
         newProfile.isBlocked = false;
-        if (user.email === ADMIN_EMAIL) {
+        const userEmail = (user.email || '').toLowerCase();
+        
+        // Check for hardcoded admins
+        if (userEmail === ADMIN_EMAIL.toLowerCase()) {
           newProfile.role = 'admin';
-        } else if (user.email === OFFICER_EMAIL) {
+        } else if (userEmail === OFFICER_EMAIL.toLowerCase()) {
           newProfile.role = 'library officer';
         } else {
-          newProfile.role = 'user';
+          // Check pre-authorized roles
+          try {
+            const preAuthRef = doc(db, 'pre_authorized_roles', userEmail);
+            const preAuthSnap = await getDoc(preAuthRef);
+            if (preAuthSnap.exists()) {
+              newProfile.role = (preAuthSnap.data() as { role: UserProfile['role'] }).role || 'user';
+            } else {
+              newProfile.role = 'user';
+            }
+          } catch (e) {
+            console.error("ProfileSetup pre-auth check failed:", e);
+            newProfile.role = 'user';
+          }
         }
       }
       
