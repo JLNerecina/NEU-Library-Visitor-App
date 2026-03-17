@@ -97,4 +97,5 @@ The UI/UX is built with a "Glassmorphism" aesthetic, utilizing semi-transparent 
 
 ---
 
-Made with ❤️ for New Era University.
+Made with ❤️ for New Era University.   
+Creator: John Lian R. Nerecina  
