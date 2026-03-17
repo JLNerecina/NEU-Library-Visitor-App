@@ -2,7 +2,7 @@
 
 Welcome to the **NEU Library Visitor Portal**! This is a modern, full-stack web application designed to streamline library access, track real-time occupancy, and provide insightful analytics for library administrators.
 
-✨ **[Try the App Live Here!](https://ais-pre-4uzsn4g2log6fpa5vv6uee-197429492724.asia-southeast1.run.app)** ✨
+✨ **[Try the App Live Here!](https://remix-neu-library-visitor-app-230692279419.us-west1.run.app)** ✨
 
 ---
 
