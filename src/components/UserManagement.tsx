@@ -8,7 +8,7 @@ import { motion } from 'motion/react';
 
 import PreAuthorizedEmails from './PreAuthorizedEmails';
 
-export default function UserManagement({ currentUserRole }: { currentUserRole?: string }) {
+export default function UserManagement({ currentUserRole, isSandbox }: { currentUserRole?: string, isSandbox?: boolean }) {
   const [activeTab, setActiveTab] = useState<'users' | 'preauth'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +18,14 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
   const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
 
   useEffect(() => {
+    if (isSandbox) {
+      setUsers([
+         { uid: 'sandbox-1', name: 'Juan Dela Cruz', email: 'juan@neu.edu.ph', college: 'CCS', role: 'user', isBlocked: false, studentId: '20-1234' },
+         { uid: 'sandbox-2', name: 'Maria Clara', email: 'maria@neu.edu.ph', college: 'CAS', role: 'library officer', isBlocked: false, studentId: '19-5678' }
+      ]);
+      setLoading(false);
+      return;
+    }
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
       let fetchedUsers = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
       
@@ -39,9 +47,13 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
       setLoading(false);
     });
     return unsub;
-  }, [currentUserRole]);
+  }, [currentUserRole, isSandbox]);
 
   const toggleBlock = async (userProfile: UserProfile) => {
+    if (isSandbox) {
+      setUsers(prev => prev.map(u => u.uid === userProfile.uid ? { ...u, isBlocked: !u.isBlocked } : u));
+      return;
+    }
     try {
       const userRef = doc(db, 'users', userProfile.uid);
       await updateDoc(userRef, { isBlocked: !userProfile.isBlocked });
@@ -52,6 +64,11 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
 
   const handleDelete = async (uid: string) => {
     if (confirmingDelete === uid) {
+      if (isSandbox) {
+        setUsers(prev => prev.filter(u => u.uid !== uid));
+        setConfirmingDelete(null);
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'users', uid));
         setConfirmingDelete(null);
@@ -67,6 +84,11 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+    if (isSandbox) {
+      setUsers(prev => prev.map(u => u.uid === editingUser.uid ? { ...u, ...editForm } : u));
+      setEditingUser(null);
+      return;
+    }
     try {
       const userRef = doc(db, 'users', editingUser.uid);
       await updateDoc(userRef, editForm);
@@ -118,7 +140,7 @@ export default function UserManagement({ currentUserRole }: { currentUserRole?: 
 
       {activeTab === 'preauth' ? (
         <div className="glass-card p-8">
-          <PreAuthorizedEmails />
+          <PreAuthorizedEmails isSandbox={isSandbox} />
         </div>
       ) : (
         <div className="glass-card overflow-hidden">

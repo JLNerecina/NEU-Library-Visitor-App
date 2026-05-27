@@ -1,0 +1,25 @@
+133:function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+156:async function createNotification(recipientUid: string, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+171:async function notifyAllUsers(title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+256:export default function App() {
+901:function Sidebar({ 
+1020:function SidebarItem({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+1037:function MobileNav({ 
+1100:function MobileNavItem({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+1115:function NotificationBell({ profile }: { profile: UserProfile }) {
+1237:function Header({ 
+1361:function LibraryCapacity({ occupancy, capacity }: { occupancy: number, capacity: number }) {
+1381:function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: UserProfile, logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
+2086:function LibraryUpdates() {
+2157:function UpdateManagement({ logSystemActivity, isSandbox }: { logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void>, isSandbox?: boolean }) {
+2410:function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: { profile: UserProfile, onAction: () => void, onViewAll: () => void, logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
+2673:function PurposeCard({ icon, label, reason, profile, onSuccess, logSystemActivity }: { 
+2743:function LoginScreen({ onGoogleLogin, onEmailLogin, onToggleRegister, error, isAuthenticating }: { 
+2854:function RegisterScreen({ onRegister, onToggleLogin, error }: { 
+2986:function VerificationSentScreen({ onBackToLogin }: { onBackToLogin: () => void }) {
+3016:function BlockedScreen({ onLogout }: { onLogout: () => void }) {
+3037:function ProfileSetup({ user, profile, onComplete }: { user: User, profile: UserProfile | null, onComplete: () => void }) {
+3152:function UserLogs({ profile }: { profile: UserProfile }) {
+3306:function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: number }) {
+3320:function AboutSection() {
+3474:function SettingsSection({ profile, onUpdate }: { profile: UserProfile, onUpdate: () => void }) {

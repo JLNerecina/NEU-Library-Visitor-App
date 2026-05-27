@@ -10,7 +10,7 @@ import PrintReport from './PrintReport';
 
 const COLORS = ['#3b82f6', '#60a5fa', '#93c5fd', '#2563eb', '#1d4ed8'];
 
-const AdminAnalytics = () => {
+const AdminAnalytics = ({ isSandbox }: { isSandbox?: boolean }) => {
   const [logs, setLogs] = useState<any[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -72,6 +72,52 @@ const AdminAnalytics = () => {
   };
 
   useEffect(() => {
+    if (isSandbox) {
+      const reasons = ['Research', 'Study', 'Group Work', 'Book Borrowing', 'Internet/PC Access', 'Thesis Research'];
+      const colleges = [
+        'College of Engineering & Architecture',
+        'College of Business Administration',
+        'College of Arts and Sciences',
+        'College of Science',
+        'College of Informatics and Computing Studies',
+        'College of Law',
+        'College of Education',
+        'College of Nursing'
+      ];
+      const studentNames = [
+        'Alice Johnson', 'Bob Smith', 'Charlie Brown', 'Diana Prince', 'Evan Wright',
+        'Fiona Gallagher', 'George Cooper', 'Hannah Montana', 'Ian Malcolm', 'Julia Roberts',
+        'Kevin Hart', 'Luna Lovegood', 'Michael Scott', 'Nancy Drew', 'Oscar Martinez'
+      ];
+      
+      const generated: any[] = [];
+      const now = Date.now();
+      
+      // Generate logs spread over the last 7 days
+      for (let i = 0; i < 50; i++) {
+        const hoursAgo = Math.floor(Math.random() * 168); // up to 7 days
+        const logTime = new Date(now - hoursAgo * 3600000);
+        const hasExited = Math.random() > 0.3;
+        const durationHours = Math.floor(Math.random() * 4) + 1;
+        const exitTime = hasExited ? new Date(logTime.getTime() + durationHours * 3600000) : null;
+        
+        generated.push({
+          id: `mock-analytics-${i}`,
+          uid: `sandbox-u${i % 5}`,
+          userName: studentNames[i % studentNames.length],
+          college: colleges[i % colleges.length],
+          reason: reasons[i % reasons.length],
+          timestamp: { toDate: () => logTime },
+          exitTimestamp: exitTime ? { toDate: () => exitTime } : null
+        });
+      }
+      
+      // Sort by timestamp descending
+      const sortedLogs = generated.sort((a, b) => b.timestamp.toDate().getTime() - a.timestamp.toDate().getTime());
+      setLogs(sortedLogs);
+      return;
+    }
+
     const q = query(collection(db, 'visitLogs'), orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (logsSnap) => {
       setLogs(logsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -79,9 +125,13 @@ const AdminAnalytics = () => {
       console.error(err);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isSandbox]);
 
   const populateSampleData = async () => {
+    if (isSandbox) {
+      alert('Sandbox mode: Sample data is automatically generated and cannot be modified.');
+      return;
+    }
     try {
       const sampleLogs = [
         { uid: 'u1', userName: 'Alice', college: 'CAS', reason: 'Research', timestamp: Timestamp.now(), exitTimestamp: Timestamp.now() },

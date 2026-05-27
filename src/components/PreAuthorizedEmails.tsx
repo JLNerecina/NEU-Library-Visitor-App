@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { Mail, Plus, Trash2, X, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export default function PreAuthorizedEmails() {
+export default function PreAuthorizedEmails({ isSandbox }: { isSandbox?: boolean }) {
   const [emails, setEmails] = useState<{ id: string, email: string, role: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -13,6 +13,14 @@ export default function PreAuthorizedEmails() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (isSandbox) {
+      setEmails([
+        { id: '1', email: 'director@neu.edu.ph', role: 'admin' },
+        { id: '2', email: 'officer@neu.edu.ph', role: 'library officer' }
+      ]);
+      setLoading(false);
+      return;
+    }
     const unsub = onSnapshot(collection(db, 'pre_authorized_roles'), (snapshot) => {
       const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as { id: string, email: string, role: string }));
       setEmails(fetched);
@@ -26,7 +34,7 @@ export default function PreAuthorizedEmails() {
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [isSandbox]);
 
   const handleBulkAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +44,14 @@ export default function PreAuthorizedEmails() {
       .filter(e => e.endsWith('@neu.edu.ph'));
 
     if (emailList.length === 0) return;
+
+    if (isSandbox) {
+      const added = emailList.map((email) => ({ id: email, email, role: newRole }));
+      setEmails(prev => [...prev.filter(e => !emailList.includes(e.email)), ...added]);
+      setNewEmails('');
+      setIsAdding(false);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -56,6 +72,10 @@ export default function PreAuthorizedEmails() {
   };
 
   const removeEmail = async (email: string) => {
+    if (isSandbox) {
+      setEmails(prev => prev.filter(e => e.id !== email && e.email !== email));
+      return;
+    }
     try {
       await deleteDoc(doc(db, 'pre_authorized_roles', email));
     } catch (err) {

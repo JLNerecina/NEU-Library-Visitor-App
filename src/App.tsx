@@ -97,7 +97,8 @@ import {
   Edit2,
   X,
   Check,
-  BarChart3
+  BarChart3,
+  Chrome
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -260,9 +261,32 @@ export default function App() {
   const [view, setView] = useState<'home' | 'admin' | 'management' | 'updates' | 'logs' | 'map' | 'about' | 'settings'>('home');
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'verification-sent' | 'complete-profile'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [sandboxRole, setSandboxRole] = useState<'admin' | 'library officer' | 'user' | null>(null);
+  
+  // Define simulated profile based on sandbox role
+  const simulatedProfile = sandboxRole ? {
+    uid: 'sandbox-' + sandboxRole,
+    email: 'sandbox@neu.edu.ph',
+    name: sandboxRole.charAt(0).toUpperCase() + sandboxRole.slice(1) + ' (Demo)',
+    college: 'CCS',
+    role: sandboxRole,
+    isBlocked: false,
+    photoURL: null
+  } : null;
+
+  // Render content either if logged in or using sandbox
+  const currentUser = user || (sandboxRole ? { uid: 'sandbox' } : null);
+  const currentProfile = profile || simulatedProfile;
+  const effectiveRole = sandboxRole || (profile?.role);
+
+  // Helper to trigger login
+  const handleSandboxLogin = (role: 'admin' | 'library officer' | 'user') => {
+    setSandboxRole(role);
+  };
 
   const logSystemActivity = async (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => {
     if (!profile) return;
+    if (profile.uid.startsWith('sandbox') || sandboxRole) return;
     try {
       await addDoc(collection(db, 'system_activities'), {
         ...activity,
@@ -666,12 +690,12 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    setSandboxRole(null);
     await signOut(auth);
     setView('home');
     setAuthMode('login');
   };
 
-  const effectiveRole = (profile?.role === 'admin' && simulatedRole) ? simulatedRole : profile?.role;
 
   if (loading) {
     return (
@@ -683,63 +707,83 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="relative min-h-screen w-full flex bg-[var(--bg-color)] overflow-hidden">
-        {/* Decorative Orbs */}
-        <div className="orb w-[500px] h-[500px] bg-blue-600 top-[-10%] right-[-10%] animate-float" />
-        <div className="orb w-[400px] h-[400px] bg-purple-600 bottom-[10%] left-[-5%] animate-float" style={{ animationDelay: '-5s' }} />
-
-        {!user ? (
-          <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
-            <header className="w-full max-w-md flex items-center justify-between mb-8 z-50">
-              <div className="flex items-center gap-2">
-                <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
-                <span className="text-lg font-bold tracking-tight text-[var(--text-main)]">NEU Library</span>
+      <div className={cn(
+        "min-h-screen bg-[var(--bg-color)] text-[var(--text-main)] transition-colors duration-300 flex overflow-hidden",
+        theme === 'dark' ? 'dark' : ''
+      )}>
+        {(!currentUser) ? (
+          <div className="flex flex-col lg:flex-row w-full min-h-screen">
+            {/* Left Panel */}
+            <div className="hidden lg:flex flex-col justify-between w-2/5 p-12 bg-[#056247] shrink-0">
+              <div className="space-y-8">
+                <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-20 h-20 object-contain" referrerPolicy="no-referrer" />
+                <div className="space-y-4">
+                  <span className="text-sm font-bold uppercase tracking-widest bg-white/20 px-4 py-1.5 rounded-full">Institutional Portal</span>
+                  <h1 className="text-5xl font-bold leading-tight text-white">NEU Library Visitor System</h1>
+                  <p className="text-white/80 text-lg leading-relaxed">Official gatepass logging and capacity monitoring system for New Era University's intellectual heart. Registered visitors can easily sign in to manage and log session timelines.</p>
+                </div>
               </div>
-              <button 
-                onClick={toggleTheme}
-                className="p-2 rounded-xl bg-[var(--input-bg)] border border-white/10 hover:bg-white/10 transition-all text-[var(--text-main)]"
-              >
-                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-              </button>
-            </header>
-            {authMode === 'login' && (
-              <LoginScreen 
-                onGoogleLogin={handleGoogleLogin} 
-                onEmailLogin={handleLogin}
-                onToggleRegister={() => setAuthMode('register')}
-                error={authError} 
-                isAuthenticating={isAuthenticating}
-              />
-            )}
-            {authMode === 'register' && (
-              <RegisterScreen 
-                onRegister={handleRegister}
-                onToggleLogin={() => setAuthMode('login')}
-                error={authError}
-              />
-            )}
-            {authMode === 'verification-sent' && (
-              <VerificationSentScreen onBackToLogin={() => {
-                signOut(auth);
-                setAuthMode('login');
-              }} />
-            )}
+              <div className="space-y-2 text-white">
+                <p className="text-sm font-bold text-white/50 uppercase tracking-widest">Operating Hours</p>
+                <p className="text-lg font-medium">Mon – Fri | 8:00 AM – 5:00 PM</p>
+              </div>
+            </div>
+
+            {/* Right Panel */}
+            <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-12 bg-[var(--bg-color)] overflow-y-auto max-h-screen">
+              <div className="w-full max-w-lg space-y-8 my-auto py-6">
+                <div className="space-y-2">
+                  <h2 className="text-4xl font-bold text-[var(--text-main)]">Sign In To Portal</h2>
+                  <p className="text-[var(--text-muted)] text-lg">Provide your institutional email to access live checking facilities.</p>
+                </div>
+
+                <button 
+                  onClick={handleGoogleLogin}
+                  className="w-full py-4 bg-[#056247] hover:bg-[#044c38] text-white rounded-xl font-bold flex items-center justify-center gap-3 transition-all text-lg shadow-lg"
+                >
+                  <Chrome className="w-5 h-5" />
+                  Sign in with NEU Google Account
+                </button>
+
+                <div className="p-6 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-blue-500 dark:text-blue-400 font-bold mb-1">
+                    <Info className="w-5 h-5" /> NOTICE
+                  </div>
+                  <p className="text-sm text-[var(--text-muted)]">Auth is locked to verified university emails (@neu.edu.ph). If you need another way, explore our sandbox demo below.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-[var(--text-main)] uppercase tracking-wide">NOT AN NEU MEMBER? EXPLORE SANDBOX</h3>
+                  <p className="text-[var(--text-muted)] text-sm">Select one of the simulated roles below to test visitor actions, dashboards, and management capabilities without affecting actual database files.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <button onClick={() => handleSandboxLogin('admin')} className="p-4 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl hover:border-blue-500/50 dark:hover:border-blue-400/50 transition-all space-y-3 flex flex-col items-center text-center">
+                      <ShieldAlert className="w-8 h-8 text-orange-500 dark:text-orange-400" />
+                      <div className="font-bold text-[var(--text-main)]">Admin</div>
+                      <div className="text-xs text-[var(--text-muted)]">Supervisor dashboard.</div>
+                    </button>
+                    <button onClick={() => handleSandboxLogin('library officer')} className="p-4 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl hover:border-green-500/50 dark:hover:border-green-400/50 transition-all space-y-3 flex flex-col items-center text-center">
+                      <Users className="w-8 h-8 text-green-500 dark:text-green-400" />
+                      <div className="font-bold text-[var(--text-main)]">Librarian</div>
+                      <div className="text-xs text-[var(--text-muted)]">Roster, capacity.</div>
+                    </button>
+                    <button onClick={() => handleSandboxLogin('user')} className="p-4 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl hover:border-blue-500/50 dark:hover:border-blue-400/50 transition-all space-y-3 flex flex-col items-center text-center">
+                      <BookOpen className="w-8 h-8 text-blue-500 dark:text-blue-400" />
+                      <div className="font-bold text-[var(--text-main)]">Student</div>
+                      <div className="text-xs text-[var(--text-muted)]">Log visits.</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : user && !user.emailVerified && authMode !== 'verification-sent' ? (
+        ) : !currentProfile || !currentProfile.college ? (
           <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
-             <VerificationSentScreen onBackToLogin={() => {
-                signOut(auth);
-                setAuthMode('login');
-              }} />
-          </div>
-        ) : !profile || !profile.college ? (
-          <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8">
-            <ProfileSetup user={user} profile={profile} onComplete={() => fetchProfile(user.uid)} />
+            <ProfileSetup user={currentUser as User} profile={currentProfile} onComplete={() => fetchProfile(currentUser.uid)} />
           </div>
         ) : (
           <>
             <Sidebar 
-              profile={{ ...profile, role: effectiveRole }} 
+              profile={{ ...currentProfile, role: effectiveRole }} 
               activeView={view} 
               setView={setView} 
               onLogout={handleLogout} 
@@ -747,13 +791,13 @@ export default function App() {
             />
             <div className="flex-1 flex flex-col h-screen overflow-hidden">
               <Header 
-                profile={{ ...profile, role: effectiveRole }} 
+                profile={{ ...currentProfile, role: effectiveRole }} 
                 theme={theme} 
                 toggleTheme={toggleTheme} 
                 onLogout={handleLogout}
-                actualRole={profile.role}
-                simulatedRole={simulatedRole}
-                onSimulateRole={setSimulatedRole}
+                actualRole={currentProfile.role}
+                simulatedRole={sandboxRole}
+                onSimulateRole={setSandboxRole}
               />
               <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 lg:pb-8">
                 <div className="max-w-6xl mx-auto">
@@ -765,7 +809,7 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                       >
-                        <AdminAnalytics />
+                        <AdminAnalytics isSandbox={!!sandboxRole || currentProfile?.uid?.startsWith('sandbox')} />
                       </motion.div>
                     )}
                     {view === 'management' && effectiveRole === 'admin' && (
@@ -775,7 +819,7 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                       >
-                        <UserManagement currentUserRole={profile.role} />
+                        <UserManagement currentUserRole={currentProfile.role} isSandbox={!!sandboxRole || currentProfile.uid.startsWith('sandbox')} />
                       </motion.div>
                     )}
                     {view === 'updates' && effectiveRole === 'admin' && (
@@ -785,7 +829,7 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                       >
-                        <UpdateManagement logSystemActivity={logSystemActivity} />
+                        <UpdateManagement logSystemActivity={logSystemActivity} isSandbox={!!sandboxRole || currentProfile.uid.startsWith('sandbox')} />
                       </motion.div>
                     )}
                     {view === 'home' && (
@@ -796,9 +840,9 @@ export default function App() {
                         exit={{ opacity: 0, y: -20 }}
                       >
                         {effectiveRole === 'admin' || effectiveRole === 'library officer' ? (
-                          <LibraryOfficerDashboard profile={{ ...profile, role: effectiveRole }} logSystemActivity={logSystemActivity} />
+                          <LibraryOfficerDashboard profile={{ ...currentProfile, role: effectiveRole }} logSystemActivity={logSystemActivity} />
                         ) : (
-                          <StudentDashboard profile={{ ...profile, role: effectiveRole }} onAction={fetchOccupancy} onViewAll={() => setView('logs')} logSystemActivity={logSystemActivity} />
+                          <StudentDashboard profile={{ ...currentProfile, role: effectiveRole }} onAction={fetchOccupancy} onViewAll={() => setView('logs')} logSystemActivity={logSystemActivity} />
                         )}
                       </motion.div>
                     )}
@@ -809,7 +853,7 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                       >
-                        <UserLogs profile={{ ...profile, role: effectiveRole }} />
+                        <UserLogs profile={{ ...currentProfile, role: effectiveRole }} />
                       </motion.div>
                     )}
                     {view === 'about' && (
@@ -829,7 +873,7 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                       >
-                        <SettingsSection profile={{ ...profile, role: effectiveRole }} onUpdate={() => fetchProfile(profile.uid)} />
+                        <SettingsSection profile={{ ...currentProfile, role: effectiveRole }} onUpdate={() => fetchProfile(currentProfile.uid)} />
                       </motion.div>
                     )}
                     {view === 'map' && (
@@ -847,7 +891,7 @@ export default function App() {
                 </div>
               </main>
             </div>
-            <MobileNav activeView={view} setView={setView} profile={{ ...profile, role: effectiveRole }} />
+            <MobileNav activeView={view} setView={setView} profile={{ ...currentProfile, role: effectiveRole }} />
           </>
         )}
       </div>
@@ -1074,6 +1118,11 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    if (profile.uid.startsWith('sandbox')) {
+      setNotifications([]);
+      return;
+    }
+
     const q = query(
       collection(db, 'notifications'),
       where('recipientUid', '==', profile.uid),
@@ -1083,7 +1132,10 @@ function NotificationBell({ profile }: { profile: UserProfile }) {
 
     const unsub = onSnapshot(q, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppNotification)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'notifications'));
+    }, (err) => {
+      if (err.code === 'permission-denied') return;
+      handleFirestoreError(err, OperationType.LIST, 'notifications');
+    });
 
     return unsub;
   }, [profile.uid]);
@@ -1342,40 +1394,52 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     if (!profile) return;
     
     try {
-      if (isAddingUser) {
-        // Use an email-based ID for manual entries to allow direct lookup without collection listing
-        const tempUid = `manual:${newUserForm.email.toLowerCase()}`;
-        const newUser: UserProfile = {
-          uid: tempUid,
-          email: newUserForm.email.toLowerCase(),
-          name: newUserForm.name,
-          college: newUserForm.college,
-          studentId: newUserForm.studentId,
-          isBlocked: false,
-          role: newUserForm.role
-        };
-        await setDoc(doc(db, 'users', tempUid), newUser);
-        await createNotification(profile.uid, 'User Added', `Successfully added user: ${newUser.name}`, 'success');
-        await logSystemActivity({
-          type: 'add_user',
-          targetId: tempUid,
-          targetName: newUser.name,
-          details: `Manually added user: ${newUser.name}`
+      if (profile.uid.startsWith('sandbox')) {
+        // Mock behavior for sandbox
+        setAllUsers(prev => {
+          if (isAddingUser) {
+            return [...prev, { uid: `mock-${Date.now()}`, email: newUserForm.email, name: newUserForm.name, college: newUserForm.college, studentId: newUserForm.studentId, isBlocked: false, role: newUserForm.role }];
+          } else if (editingUser) {
+            return prev.map(u => u.uid === editingUser.uid ? { ...u, name: newUserForm.name, college: newUserForm.college, studentId: newUserForm.studentId, role: newUserForm.role } : u);
+          }
+          return prev;
         });
-      } else if (editingUser) {
-        await updateDoc(doc(db, 'users', editingUser.uid), {
-          name: newUserForm.name,
-          college: newUserForm.college,
-          studentId: newUserForm.studentId,
-          role: newUserForm.role
-        });
-        await createNotification(profile.uid, 'User Updated', `Successfully updated user: ${newUserForm.name}`, 'success');
-        await logSystemActivity({
-          type: 'edit_user',
-          targetId: editingUser.uid,
-          targetName: newUserForm.name,
-          details: `Updated user details for: ${newUserForm.name}`
-        });
+      } else {
+        if (isAddingUser) {
+          // Use an email-based ID for manual entries to allow direct lookup without collection listing
+          const tempUid = `manual:${newUserForm.email.toLowerCase()}`;
+          const newUser: UserProfile = {
+            uid: tempUid,
+            email: newUserForm.email.toLowerCase(),
+            name: newUserForm.name,
+            college: newUserForm.college,
+            studentId: newUserForm.studentId,
+            isBlocked: false,
+            role: newUserForm.role
+          };
+          await setDoc(doc(db, 'users', tempUid), newUser);
+          await createNotification(profile.uid, 'User Added', `Successfully added user: ${newUser.name}`, 'success');
+          await logSystemActivity({
+            type: 'add_user',
+            targetId: tempUid,
+            targetName: newUser.name,
+            details: `Manually added user: ${newUser.name}`
+          });
+        } else if (editingUser) {
+          await updateDoc(doc(db, 'users', editingUser.uid), {
+            name: newUserForm.name,
+            college: newUserForm.college,
+            studentId: newUserForm.studentId,
+            role: newUserForm.role
+          });
+          await createNotification(profile.uid, 'User Updated', `Successfully updated user: ${newUserForm.name}`, 'success');
+          await logSystemActivity({
+            type: 'edit_user',
+            targetId: editingUser.uid,
+            targetName: newUserForm.name,
+            details: `Updated user details for: ${newUserForm.name}`
+          });
+        }
       }
       setIsAddingUser(false);
       setEditingUser(null);
@@ -1410,25 +1474,59 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   useEffect(() => {
+    if (profile.uid.startsWith('sandbox')) {
+      setOccupancy(4);
+      setAllUsers([
+        { uid: 'sandbox-admin', email: 'admin@neu.edu.ph', name: 'Admin (Demo)', college: 'College of Informatics and Computing Studies', role: 'admin', isBlocked: false, studentId: '2020-0099' },
+        { uid: 'sandbox-officer', email: 'officer@neu.edu.ph', name: 'Officer (Demo)', college: 'College of Informatics and Computing Studies', role: 'library officer', isBlocked: false, studentId: '2019-0302' },
+        { uid: 'sandbox-u1', email: 'juan@neu.edu.ph', name: 'Juan Dela Cruz', college: 'College of Informatics and Computing Studies', role: 'user', isBlocked: false, studentId: '20-1234' },
+        { uid: 'sandbox-u2', email: 'maria@neu.edu.ph', name: 'Maria Clara', college: 'College of Arts and Sciences', role: 'user', isBlocked: false, studentId: '19-5678' },
+        { uid: 'sandbox-u3', email: 'simon@neu.edu.ph', name: 'Crisostomo Ibarra', college: 'College of Arts and Sciences', role: 'user', isBlocked: false, studentId: '18-0909' },
+        { uid: 'sandbox-u4', email: 'fili@neu.edu.ph', name: 'El Filibusterismo', college: 'College of Law', role: 'user', isBlocked: true, studentId: '17-4567' }
+      ]);
+      setLogs([
+        { id: 'l1', uid: 'sandbox-u1', userName: 'Juan Dela Cruz', college: 'College of Informatics and Computing Studies', reason: 'Research', timestamp: { toDate: () => new Date(Date.now() - 15 * 60000) } },
+        { id: 'l2', uid: 'sandbox-u2', userName: 'Maria Clara', college: 'College of Arts and Sciences', reason: 'Study', timestamp: { toDate: () => new Date(Date.now() - 40 * 60000) } },
+        { id: 'l3', uid: 'sandbox-u3', userName: 'Crisostomo Ibarra', college: 'College of Arts and Sciences', reason: 'Borrowing Books', timestamp: { toDate: () => new Date(Date.now() - 110 * 60000) } },
+        { id: 'l4', uid: 'sandbox-u1', userName: 'Juan Dela Cruz', college: 'College of Informatics and Computing Studies', reason: 'Internet Access', timestamp: { toDate: () => new Date(Date.now() - 3 * 3600 * 1000) }, exitTimestamp: { toDate: () => new Date(Date.now() - 2 * 3600 * 1000) } }
+      ]);
+      setSystemActivities([
+        { id: 'a1', actorId: 'sandbox-admin', actorName: 'Admin (Demo)', type: 'add_user', details: 'Added new visitor: Juan Dela Cruz', timestamp: { toDate: () => new Date(Date.now() - 2 * 3600 * 1000) } },
+        { id: 'a2', actorId: 'sandbox-officer', actorName: 'Officer (Demo)', type: 'block_user', details: 'Blocked user account: El Filibusterismo', timestamp: { toDate: () => new Date(Date.now() - 5 * 3600 * 1000) } }
+      ]);
+      return;
+    }
+
     const unsubStats = onSnapshot(doc(db, 'stats', 'library'), (doc) => {
       setOccupancy(doc.data()?.occupancy || 0);
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'stats/library'));
+    }, (err) => {
+      if (err.code === 'permission-denied') return;
+      handleFirestoreError(err, OperationType.GET, 'stats/library');
+    });
     
-    // Fetch users and logs, then filter them
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       setAllUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+    }, (err) => {
+      if (err.code === 'permission-denied') return;
+      handleFirestoreError(err, OperationType.LIST, 'users');
+    });
     
     const unsubLogs = onSnapshot(query(collection(db, 'visitLogs'), orderBy('timestamp', 'desc')), (snapshot) => {
       setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VisitLog)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'visitLogs'));
+    }, (err) => {
+      if (err.code === 'permission-denied') return;
+      handleFirestoreError(err, OperationType.LIST, 'visitLogs');
+    });
 
     const unsubSystemActivities = onSnapshot(query(collection(db, 'system_activities'), orderBy('timestamp', 'desc'), limit(10)), (snapshot) => {
       setSystemActivities(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemActivity)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'system_activities'));
+    }, (err) => {
+      if (err.code === 'permission-denied') return;
+      handleFirestoreError(err, OperationType.LIST, 'system_activities');
+    });
 
     return () => { unsubStats(); unsubUsers(); unsubLogs(); unsubSystemActivities(); };
-  }, []);
+  }, [profile.uid]);
 
   const adminUids = useMemo(() => {
     return new Set(allUsers
@@ -1448,6 +1546,24 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
   const handleBlockToggle = async (user: UserProfile) => {
     try {
       const newStatus = !user.isBlocked;
+      if (profile.uid.startsWith('sandbox')) {
+        setAllUsers(prev => prev.map(u => u.uid === user.uid ? { ...u, isBlocked: newStatus } : u));
+        setSystemActivities(prev => [
+          {
+            id: `act-${Date.now()}`,
+            actorId: profile.uid,
+            actorName: profile.name,
+            type: newStatus ? 'block_user' : 'unblock_user',
+            targetId: user.uid,
+            targetName: user.name,
+            details: `${newStatus ? 'Blocked' : 'Unblocked'} user account`,
+            timestamp: { toDate: () => new Date() }
+          },
+          ...prev
+        ]);
+        return;
+      }
+
       await updateDoc(doc(db, 'users', user.uid), { isBlocked: newStatus });
       
       await createNotification(
@@ -1476,6 +1592,25 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     }
     
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        setAllUsers(prev => prev.filter(u => u.uid !== uid));
+        setLogs(prev => prev.filter(l => l.uid !== uid));
+        setConfirmingDelete(null);
+        setSystemActivities(prev => [
+          {
+            id: `act-${Date.now()}`,
+            actorId: profile.uid,
+            actorName: profile.name,
+            type: 'delete_user',
+            targetId: uid,
+            details: 'Deleted user and all associated visit logs',
+            timestamp: { toDate: () => new Date() }
+          },
+          ...prev
+        ]);
+        return;
+      }
+
       const batch = writeBatch(db);
       batch.delete(doc(db, 'users', uid));
       
@@ -1521,7 +1656,27 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
     }
 
     setIsSeeding(true);
+    await new Promise(r => setTimeout(r, 450));
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        setAllUsers(prev => prev.filter(u => u.uid === profile.uid));
+        setLogs([]);
+        setOccupancy(0);
+        setConfirmingClear(false);
+        setSystemActivities(prev => [
+          {
+            id: `act-${Date.now()}`,
+            actorId: profile.uid,
+            actorName: profile.name,
+            type: 'delete_user',
+            details: 'Cleared all users and visit logs from database',
+            timestamp: { toDate: () => new Date() }
+          },
+          ...prev
+        ]);
+        return;
+      }
+
       const batch = writeBatch(db);
       
       // Delete non-admin users
@@ -1556,7 +1711,27 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
 
   const handleBulkDelete = async () => {
     setIsSeeding(true);
+    await new Promise(r => setTimeout(r, 450));
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        setAllUsers(prev => prev.filter(u => !selectedUsers.has(u.uid)));
+        setLogs(prev => prev.filter(l => !selectedUsers.has(l.uid)));
+        setSelectedUsers(new Set());
+        setIsBulkDeleteMode(false);
+        setSystemActivities(prev => [
+          {
+            id: `act-${Date.now()}`,
+            actorId: profile.uid,
+            actorName: profile.name,
+            type: 'delete_user',
+            details: `Bulk deleted ${selectedUsers.size} users and all their associated visit logs`,
+            timestamp: { toDate: () => new Date() }
+          },
+          ...prev
+        ]);
+        return;
+      }
+
       const batch = writeBatch(db);
       let totalActiveVisitsToRemove = 0;
       
@@ -1618,7 +1793,47 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
 
   const seedExampleData = async () => {
     setIsSeeding(true);
+    await new Promise(r => setTimeout(r, 450));
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        const sampleUsers = [
+          { uid: 'sandbox-s1', name: 'Alice Johnson', email: 'alice@neu.edu.ph', college: 'College of Engineering & Architecture', studentId: '2021-0001', isBlocked: false, role: 'user' as const },
+          { uid: 'sandbox-s2', name: 'Bob Smith', email: 'bob@neu.edu.ph', college: 'College of Business Administration', studentId: '2021-0002', isBlocked: false, role: 'user' as const },
+          { uid: 'sandbox-s3', name: 'Charlie Brown', email: 'charlie@neu.edu.ph', college: 'College of Arts and Sciences', studentId: '2021-0003', isBlocked: true, role: 'user' as const },
+          { uid: 'sandbox-s4', name: 'Diana Prince', email: 'diana@neu.edu.ph', college: 'College of Science', studentId: '2021-0004', isBlocked: false, role: 'user' as const },
+        ];
+        
+        setAllUsers(prev => {
+          const filtered = prev.filter(u => !['sandbox-s1', 'sandbox-s2', 'sandbox-s3', 'sandbox-s4'].includes(u.uid));
+          return [...filtered, ...sampleUsers];
+        });
+
+        const sampleLogs = [
+          { id: 'sandbox-sl1', uid: 'sandbox-s1', userName: 'Alice Johnson', college: 'College of Engineering & Architecture', reason: 'Research', timestamp: { toDate: () => new Date() } },
+          { id: 'sandbox-sl2', uid: 'sandbox-s2', userName: 'Bob Smith', college: 'College of Business Administration', reason: 'Study', timestamp: { toDate: () => new Date() }, exitTimestamp: { toDate: () => new Date() } },
+          { id: 'sandbox-sl3', uid: 'sandbox-s4', userName: 'Diana Prince', college: 'College of Science', reason: 'Group Work', timestamp: { toDate: () => new Date() } },
+        ];
+
+        setLogs(prev => {
+          const filtered = prev.filter(l => !['sandbox-sl1', 'sandbox-sl2', 'sandbox-sl3'].includes(l.id!));
+          return [...filtered, ...sampleLogs];
+        });
+
+        setOccupancy(6);
+        setSystemActivities(prev => [
+          {
+            id: `act-${Date.now()}`,
+            actorId: profile.uid,
+            actorName: profile.name,
+            type: 'add_user',
+            details: 'Seeded example data (Users and Visit Logs)',
+            timestamp: { toDate: () => new Date() }
+          },
+          ...prev
+        ]);
+        return;
+      }
+
       const batch = writeBatch(db);
       
       const sampleUsers = [
@@ -1664,6 +1879,12 @@ function LibraryOfficerDashboard({ profile, logSystemActivity }: { profile: User
   const recalculateOccupancy = async () => {
     setIsSeeding(true);
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        const activeCount = logs.filter(l => !l.exitTimestamp).length;
+        setOccupancy(activeCount);
+        return;
+      }
+
       const q = query(collection(db, 'visitLogs'), where('exitTimestamp', '==', null));
       const snap = await getDocs(q);
       const actualOccupancy = snap.size;
@@ -2002,6 +2223,14 @@ function LibraryUpdates() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser) {
+      setUpdates([
+        { id: '1', title: 'Welcome to Sandbox', content: 'This is a mocked update.', priority: 'low', timestamp: { toDate: () => new Date() } }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(
       collection(db, 'library_updates'),
       orderBy('timestamp', 'desc'),
@@ -2012,9 +2241,7 @@ function LibraryUpdates() {
       setUpdates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryUpdate)));
       setLoading(false);
     }, (err: any) => {
-      if (err.code === 'permission-denied' && !auth.currentUser) {
-        return;
-      }
+      if (err.code === 'permission-denied') return;
       handleFirestoreError(err, OperationType.LIST, 'library_updates');
       setLoading(false);
     });
@@ -2062,7 +2289,7 @@ function LibraryUpdates() {
   );
 }
 
-function UpdateManagement({ logSystemActivity }: { logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void> }) {
+function UpdateManagement({ logSystemActivity, isSandbox }: { logSystemActivity: (activity: Omit<SystemActivity, 'id' | 'timestamp' | 'actorId' | 'actorName'>) => Promise<void>, isSandbox?: boolean }) {
   const [updates, setUpdates] = useState<LibraryUpdate[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUpdate, setEditingUpdate] = useState<LibraryUpdate | null>(null);
@@ -2076,48 +2303,62 @@ function UpdateManagement({ logSystemActivity }: { logSystemActivity: (activity:
   });
 
   useEffect(() => {
+    if (!auth.currentUser || isSandbox) {
+      setUpdates([
+        { id: '1', title: 'Welcome to Sandbox', content: 'This is a mocked update.', priority: 'low', timestamp: { toDate: () => new Date() } }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(collection(db, 'library_updates'), orderBy('timestamp', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setUpdates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryUpdate)));
       setLoading(false);
     }, (err: any) => {
-      if (err.code === 'permission-denied' && !auth.currentUser) {
-        return;
-      }
+      if (err.code === 'permission-denied') return;
       handleFirestoreError(err, OperationType.LIST, 'library_updates');
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [isSandbox]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (editingUpdate) {
-        await updateDoc(doc(db, 'library_updates', editingUpdate.id!), {
-          ...formData,
-          timestamp: serverTimestamp()
-        });
-        await logSystemActivity({
-          type: 'edit_update',
-          details: `Updated library announcement: ${formData.title}`
-        });
+      if (!auth.currentUser || isSandbox) {
+        if (editingUpdate) {
+            setUpdates(updates.map(u => u.id === editingUpdate.id ? { ...u, ...formData } : u));
+        } else {
+            setUpdates([{ id: Date.now().toString(), ...formData, timestamp: { toDate: () => new Date() } } as any, ...updates]);
+        }
       } else {
-        await addDoc(collection(db, 'library_updates'), {
-          ...formData,
-          timestamp: serverTimestamp()
-        });
-        await logSystemActivity({
-          type: 'add_update',
-          details: `Added new library announcement: ${formData.title}`
-        });
-        // Notify all users about the new update
-        await notifyAllUsers(
-          'New Library Update',
-          formData.title,
-          formData.priority === 'high' ? 'error' : formData.priority === 'medium' ? 'warning' : 'info'
-        );
+        if (editingUpdate) {
+          await updateDoc(doc(db, 'library_updates', editingUpdate.id!), {
+            ...formData,
+            timestamp: serverTimestamp()
+          });
+          await logSystemActivity({
+            type: 'edit_update',
+            details: `Updated library announcement: ${formData.title}`
+          });
+        } else {
+          await addDoc(collection(db, 'library_updates'), {
+            ...formData,
+            timestamp: serverTimestamp()
+          });
+          await logSystemActivity({
+            type: 'add_update',
+            details: `Added new library announcement: ${formData.title}`
+          });
+          // Notify all users about the new update
+          await notifyAllUsers(
+            'New Library Update',
+            formData.title,
+            formData.priority === 'high' ? 'error' : formData.priority === 'medium' ? 'warning' : 'info'
+          );
+        }
       }
       setIsModalOpen(false);
       setEditingUpdate(null);
@@ -2132,11 +2373,15 @@ function UpdateManagement({ logSystemActivity }: { logSystemActivity: (activity:
   const handleDelete = async (update: LibraryUpdate) => {
     if (!confirm('Are you sure you want to delete this update?')) return;
     try {
-      await deleteDoc(doc(db, 'library_updates', update.id!));
-      await logSystemActivity({
-        type: 'delete_update',
-        details: `Deleted library announcement: ${update.title}`
-      });
+      if (!auth.currentUser || isSandbox) {
+        setUpdates(updates.filter(u => u.id !== update.id));
+      } else {
+        await deleteDoc(doc(db, 'library_updates', update.id!));
+        await logSystemActivity({
+          type: 'delete_update',
+          details: `Deleted library announcement: ${update.title}`
+        });
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `library_updates/${update.id}`);
     }
@@ -2308,6 +2553,35 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
     setLoading(true);
     setError(null);
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        const mockLogs: VisitLog[] = [
+          {
+            id: 'mock-log-1',
+            uid: profile.uid,
+            userName: profile.name,
+            college: profile.college || 'College of Informatics and Computing Studies',
+            reason: 'Research',
+            timestamp: { toDate: () => new Date(Date.now() - 3600000), toMillis: () => Date.now() - 3600000 } as any,
+            exitTimestamp: null
+          },
+          {
+            id: 'mock-log-2',
+            uid: profile.uid,
+            userName: profile.name,
+            college: profile.college || 'College of Informatics and Computing Studies',
+            reason: 'Study',
+            timestamp: { toDate: () => new Date(Date.now() - 86400000), toMillis: () => Date.now() - 86400000 } as any,
+            exitTimestamp: { toDate: () => new Date(Date.now() - 86400000 + 7200000) } as any
+          }
+        ];
+        setLogs(mockLogs);
+        setStats({ total: 2 });
+        setActiveVisit(mockLogs[0]);
+        onAction();
+        setLoading(false);
+        return;
+      }
+
       // Fetch recent logs
       const q = query(
         collection(db, 'visitLogs'), 
@@ -2358,6 +2632,13 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
   const handleExit = async () => {
     if (!activeVisit?.id) return;
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        setActiveVisit(null);
+        setLogs(prev => prev.map(log => log.id === activeVisit.id ? { ...log, exitTimestamp: { toDate: () => new Date() } as any } : log));
+        onAction();
+        return;
+      }
+
       await updateDoc(doc(db, 'visitLogs', activeVisit.id), {
         exitTimestamp: serverTimestamp()
       });
@@ -2573,6 +2854,12 @@ function PurposeCard({ icon, label, reason, profile, onSuccess, logSystemActivit
   const handleLog = async () => {
     setSubmitting(true);
     try {
+      if (profile.uid.startsWith('sandbox')) {
+        await new Promise(r => setTimeout(r, 600)); // Simulate delay
+        onSuccess();
+        return;
+      }
+
       await addDoc(collection(db, 'visitLogs'), {
         uid: profile.uid,
         userName: profile.name,
@@ -3047,6 +3334,21 @@ function UserLogs({ profile }: { profile: UserProfile }) {
   const isStaff = isDirector || isOfficer;
 
   useEffect(() => {
+    if (profile.uid.startsWith('sandbox')) {
+      // Mock data for sandbox mode
+      if (isStaff) {
+        setLogs([
+          { id: '1', timestamp: { toDate: () => new Date() }, actorName: 'System', type: 'system', details: 'Sandbox initialized' }
+        ]);
+      } else {
+        setLogs([
+          { id: '1', timestamp: { toDate: () => new Date() }, uid: profile.uid, userName: profile.name, reason: 'Research', college: profile.college }
+        ]);
+      }
+      setLoading(false);
+      return;
+    }
+
     const q = isStaff 
       ? query(collection(db, 'system_activities'), orderBy('timestamp', 'desc'), limit(100))
       : query(collection(db, 'visitLogs'), where('uid', '==', profile.uid), orderBy('timestamp', 'desc'), limit(100));
@@ -3055,6 +3357,7 @@ function UserLogs({ profile }: { profile: UserProfile }) {
       setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     }, (err) => {
+      if (err.code === 'permission-denied') return;
       handleFirestoreError(err, OperationType.LIST, isStaff ? 'system_activities' : 'visitLogs');
       setLoading(false);
     });

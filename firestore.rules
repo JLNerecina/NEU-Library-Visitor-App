@@ -48,7 +48,7 @@ service cloud.firestore {
     function isAdmin() {
       let email = request.auth.token.email.lower();
       return isAuthenticated() && request.auth.token.email != null && (
-        (email in ["johnliannerecina@gmail.com", "johnlian.nerecina@neu.edu.ph"] && request.auth.token.email_verified == true) ||
+        (email in ["johnliannerecina@gmail.com", "johnlian.nerecina@neu.edu.ph"]) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'library officer']) ||
         (exists(/databases/$(database)/documents/users/$( "manual:" + email )) &&
@@ -90,8 +90,7 @@ service cloud.firestore {
                    (isAuthenticated() && request.auth.token.email != null && userId == "manual:" + request.auth.token.email.lower()) ||
                    (isAuthenticated() && request.auth.token.email != null && resource != null && resource.data.email.lower() == request.auth.token.email.lower());
       
-      allow list: if isAuthenticated() && 
-                    (isAdmin() || (request.auth.token.email != null && resource.data.email == request.auth.token.email));
+      allow list: if isAdmin();
 
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
                     (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user') || isAdmin());
@@ -103,7 +102,8 @@ service cloud.firestore {
     }
 
     match /visitLogs/{logId} {
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow get: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow list: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
       allow create: if isAuthenticated() && isValidVisitLog(request.resource.data);
       allow update: if isAuthenticated() && isValidVisitLog(request.resource.data) && 
                     (resource.data.uid == request.auth.uid || isAdmin());
@@ -116,14 +116,16 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow get: if isAuthenticated() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (resource.data.recipientUid == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /system_activities/{activityId} {
-      allow read: if isAdmin();
+      allow get: if isAdmin();
+      allow list: if isAdmin();
       allow create: if isAuthenticated();
     }
 
