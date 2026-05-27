@@ -85,17 +85,17 @@ export default function PreAuthorizedEmails({ isSandbox }: { isSandbox?: boolean
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-emerald-400" />
             Pre-authorized Roles
           </h3>
-          <p className="text-sm text-[var(--text-muted)]">Emails in this list will automatically receive their assigned role upon first login.</p>
+          <p className="text-xs md:text-sm text-[var(--text-muted)]">Emails in this list will automatically receive their assigned role upon first login.</p>
         </div>
         <button 
           onClick={() => setIsAdding(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm"
+          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shrink-0 w-full sm:w-auto justify-center"
         >
           <Plus className="w-4 h-4" />
           Add Emails

@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import QRCode from 'qrcode';
+import jsQR from 'jsqr';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -98,7 +100,9 @@ import {
   X,
   Check,
   BarChart3,
-  Chrome
+  Download,
+  Chrome,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -708,7 +712,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className={cn(
-        "min-h-screen bg-[var(--bg-color)] text-[var(--text-main)] transition-colors duration-300 flex overflow-hidden",
+        "h-[100dvh] w-full bg-[var(--bg-color)] text-[var(--text-main)] transition-colors duration-300 flex overflow-hidden",
         theme === 'dark' ? 'dark' : ''
       )}>
         {(!currentUser) ? (
@@ -789,7 +793,7 @@ export default function App() {
               onLogout={handleLogout} 
               occupancy={occupancy}
             />
-            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+            <div className="flex-1 flex flex-col h-full overflow-hidden">
               <Header 
                 profile={{ ...currentProfile, role: effectiveRole }} 
                 theme={theme} 
@@ -918,7 +922,7 @@ function Sidebar({
 
   return (
     <aside className="w-64 hidden lg:flex flex-col bg-[var(--glass-bg)] backdrop-blur-xl border-r border-[var(--glass-border)] h-screen p-6 z-50">
-      <div className="flex items-center gap-3 mb-10">
+      <div className="flex items-center gap-3 mb-10 shrink-0">
         <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-10 h-10 object-contain" />
         <div>
           <h1 className="text-lg font-bold leading-tight">NEU Library</h1>
@@ -926,7 +930,7 @@ function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 space-y-2">
+      <nav className="flex-1 space-y-2 overflow-y-auto min-h-0 pr-1 shadow-inner scrollbar-thin">
         <SidebarItem 
           active={activeView === 'home'} 
           onClick={() => setView('home')} 
@@ -981,7 +985,7 @@ function Sidebar({
         />
       </nav>
 
-      <div className="mt-auto space-y-6">
+      <div className="mt-auto space-y-6 shrink-0 pt-4">
         <div className="p-4 bg-white/5 rounded-2xl border border-white/10 shadow-inner">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider">Library Capacity</span>
@@ -1045,52 +1049,52 @@ function MobileNav({
   profile: UserProfile
 }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--glass-bg)] backdrop-blur-xl border-t border-[var(--glass-border)] z-50 pb-safe">
-      <div className="flex items-center justify-between px-2 py-2 w-full overflow-x-auto no-scrollbar">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--glass-bg)] backdrop-blur-xl border-t border-[var(--glass-border)] z-[60] pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.15)]">
+      <div className="flex items-center justify-start sm:justify-around px-2 py-1.5 w-full gap-1 overflow-x-auto no-scrollbar">
         <MobileNavItem 
           active={activeView === 'home'} 
           onClick={() => setView('home')} 
-          icon={<LayoutDashboard className="w-5 h-5" />} 
+          icon={<LayoutDashboard className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
           label="Home" 
         />
         <MobileNavItem 
           active={activeView === 'logs'} 
           onClick={() => setView('logs')} 
-          icon={<History className="w-5 h-5" />} 
-          label={profile.role === 'admin' || profile.role === 'library officer' ? "Activity" : "History"} 
+          icon={<History className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
+          label={profile.role === 'admin' || profile.role === 'library officer' ? "Logs" : "History"} 
         />
         {profile.role === 'admin' && (
           <>
             <MobileNavItem 
               active={activeView === 'management'} 
               onClick={() => setView('management')} 
-              icon={<Users className="w-5 h-5" />} 
+              icon={<Users className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
               label="Users" 
             />
             <MobileNavItem 
               active={activeView === 'updates'} 
               onClick={() => setView('updates')} 
-              icon={<Megaphone className="w-5 h-5" />} 
-              label="Updates" 
+              icon={<Megaphone className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
+              label="News" 
             />
             <MobileNavItem 
               active={activeView === 'admin'} 
               onClick={() => setView('admin')} 
-              icon={<BarChart3 className="w-5 h-5" />} 
-              label="Analytics" 
+              icon={<BarChart3 className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
+              label="Stats" 
             />
           </>
         )}
         <MobileNavItem 
           active={activeView === 'about'} 
           onClick={() => setView('about')} 
-          icon={<Info className="w-5 h-5" />} 
+          icon={<Info className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
           label="About" 
         />
         <MobileNavItem 
           active={activeView === 'map'} 
           onClick={() => setView('map')} 
-          icon={<Map className="w-5 h-5" />} 
+          icon={<Map className="w-4.5 h-4.5 md:w-5 md:h-5" />} 
           label="Map" 
         />
       </div>
@@ -1103,12 +1107,12 @@ function MobileNavItem({ active, onClick, icon, label }: { active: boolean, onCl
     <button 
       onClick={onClick}
       className={cn(
-        "flex flex-1 flex-col items-center justify-center gap-1 p-2 rounded-xl transition-all min-w-[56px] shrink-0",
-        active ? "text-blue-500" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+        "flex flex-col items-center justify-center gap-1 p-2 rounded-xl transition-all min-w-[64px] shrink-0",
+        active ? "text-blue-500 bg-blue-500/5 font-bold" : "text-[var(--text-muted)] hover:text-[var(--text-main)] font-medium"
       )}
     >
-      {icon}
-      <span className="text-[10px] font-medium truncate w-full text-center">{label}</span>
+      <div className="shrink-0">{icon}</div>
+      <span className="text-[10px] truncate w-full text-center tracking-tight">{label}</span>
     </button>
   );
 }
@@ -2549,6 +2553,277 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [qrUrl, setQrUrl] = useState<string>('');
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch (e) {
+      console.warn("Audio Context beep failed", e);
+    }
+  };
+
+  const handleCheckIn = async (reason: string) => {
+    try {
+      if (profile.uid.startsWith('sandbox')) {
+        const newLog: VisitLog = {
+          id: 'mock-log-' + Date.now(),
+          uid: profile.uid,
+          userName: profile.name,
+          college: profile.college || 'College of Informatics and Computing Studies',
+          reason: reason,
+          timestamp: { toDate: () => new Date() } as any,
+          exitTimestamp: null
+        };
+        setLogs(prev => [newLog, ...prev]);
+        setActiveVisit(newLog);
+        onAction();
+        return;
+      }
+
+      await addDoc(collection(db, 'visitLogs'), {
+        uid: profile.uid,
+        userName: profile.name,
+        college: profile.college || '',
+        reason: reason,
+        timestamp: serverTimestamp(),
+        exitTimestamp: null
+      });
+
+      await createNotification(
+        profile.uid, 
+        'Visit Logged', 
+        `You have successfully entered the library for: ${reason}.`, 
+        'success'
+      );
+
+      await logSystemActivity({
+        type: 'entry',
+        targetId: profile.uid,
+        targetName: profile.name,
+        details: `Entered for: ${reason} (via QR Camera Scan)`
+      });
+
+      // Increment global occupancy
+      const statsRef = doc(db, 'stats', 'library');
+      await runTransaction(db, async (transaction) => {
+        const sfDoc = await transaction.get(statsRef);
+        if (!sfDoc.exists()) {
+          transaction.set(statsRef, { occupancy: 1 });
+        } else {
+          const currentOccupancy = Math.max(0, sfDoc.data().occupancy || 0);
+          transaction.update(statsRef, { occupancy: Math.max(0, currentOccupancy + 1) });
+        }
+      });
+
+      await fetchData();
+    } catch (err: any) {
+      console.error("Error logging scanned check-in:", err);
+      setScannerError(err.message || 'Firestore entry check-in failed');
+    }
+  };
+
+  const handleScannedCode = async (decodedText: string) => {
+    try {
+      setScannerError(null);
+      const text = decodedText.trim().toLowerCase();
+      
+      if (activeVisit) {
+        setScanResult({
+          success: true,
+          message: `Digital pass detected! Logging exit...`
+        });
+        await handleExit();
+        setTimeout(() => {
+          setIsScannerOpen(false);
+          setScanResult(null);
+        }, 1800);
+      } else {
+        let matchReason = 'Study';
+        let reasonLabel = 'Self-Study';
+
+        if (text.includes('research')) {
+          matchReason = 'Research';
+          reasonLabel = 'Research';
+        } else if (text.includes('group') || text.includes('collab') || text.includes('team')) {
+          matchReason = 'Group Work';
+          reasonLabel = 'Group Work';
+        } else if (text.includes('borrow') || text.includes('pickup') || text.includes('book')) {
+          matchReason = 'Borrowing Books';
+          reasonLabel = 'Borrowing Books';
+        } else if (text.includes('social') || text.includes('other') || text.includes('visit')) {
+          matchReason = 'Other';
+          reasonLabel = 'Other Activities';
+        } else if (text.includes('study')) {
+          matchReason = 'Study';
+          reasonLabel = 'Self-Study';
+        } else {
+          matchReason = 'Other';
+          reasonLabel = `Checked In (${decodedText.substring(0, 15)})`;
+        }
+
+        setScanResult({
+          success: true,
+          message: `Scanner detected: ${reasonLabel}! Checking in...`
+        });
+
+        await handleCheckIn(matchReason);
+
+        setTimeout(() => {
+          setIsScannerOpen(false);
+          setScanResult(null);
+        }, 1800);
+      }
+    } catch (err: any) {
+      console.error("Scan processing error:", err);
+      setScannerError("Scan processed with error: " + err.message);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    let animationFrameId: number;
+    let mediaStream: MediaStream | null = null;
+
+    if (!isScannerOpen) {
+      setScannerError(null);
+      setScanResult(null);
+      setIsCameraActive(false);
+      return;
+    }
+
+    const startCamera = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("Camera API is not supported in this environment. Please open in a new tab.");
+        }
+
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+          });
+        } catch (e) {
+          // Fallback if environment camera is not available (e.g., standard laptops)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true
+          });
+        }
+
+        mediaStream = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          await videoRef.current.play();
+          setIsCameraActive(true);
+        }
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const scanFrame = () => {
+          if (!active) return;
+          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && ctx) {
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+
+            if (code && code.data) {
+              const scannedValue = code.data.trim();
+              if (scannedValue) {
+                playBeep();
+                handleScannedCode(scannedValue);
+                active = false;
+                stopCamera();
+                return;
+              }
+            }
+          }
+          animationFrameId = requestAnimationFrame(scanFrame);
+        };
+
+        animationFrameId = requestAnimationFrame(scanFrame);
+      } catch (err: any) {
+        console.error("Camera access error:", err);
+        setScannerError(err.message || 'Could not gain camera source access. Please check frame security permissions.');
+        setIsCameraActive(false);
+      }
+    };
+
+    const stopCamera = () => {
+      active = false;
+      setIsCameraActive(false);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      stopCamera();
+    };
+  }, [isScannerOpen]);
+
+  useEffect(() => {
+    if (profile.studentId) {
+      QRCode.toDataURL(profile.studentId, {
+        margin: 2,
+        scale: 10,
+        color: {
+          dark: '#030712',
+          light: '#ffffff'
+        },
+        errorCorrectionLevel: 'H'
+      })
+      .then(url => {
+        setQrUrl(url);
+        setQrError(null);
+      })
+      .catch(err => {
+        console.error("Error generating QR code:", err);
+        setQrError("Failed to generate QR code.");
+      });
+    } else {
+      setQrUrl('');
+    }
+  }, [profile.studentId]);
+
+  const downloadPass = () => {
+    if (!qrUrl) return;
+    const link = document.createElement('a');
+    link.href = qrUrl;
+    link.download = `NEU_Library_Pass_${profile.studentId || 'ID'}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -2714,9 +2989,20 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
                 <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">College</p>
                 <p className="text-sm font-bold truncate">{profile.college}</p>
               </div>
-              <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
-                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Student ID</p>
-                <p className="text-sm font-bold">{profile.studentId || 'N/A'}</p>
+              <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Student ID</p>
+                  <p className="text-sm font-bold">{profile.studentId || 'N/A'}</p>
+                </div>
+                {profile.studentId && (
+                  <button 
+                    onClick={() => setIsQrModalOpen(true)}
+                    className="mt-2 text-[10px] font-bold text-blue-400 hover:text-white flex items-center gap-1 transition-all w-fit cursor-pointer"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    View QR Pass
+                  </button>
+                )}
               </div>
               <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
                 <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Total Visits</p>
@@ -2737,12 +3023,21 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
                 <h3 className="text-lg font-bold">Currently Inside</h3>
                 <p className="text-xs text-[var(--text-muted)]">You logged in for {activeVisit.reason}</p>
               </div>
-              <button 
-                onClick={handleExit}
-                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-red-600/20"
-              >
-                Log Your Exit
-              </button>
+              <div className="w-full space-y-2">
+                <button 
+                  onClick={handleExit}
+                  className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-red-600/20 cursor-pointer"
+                >
+                  Log Your Exit
+                </button>
+                <button 
+                  onClick={() => setIsScannerOpen(true)}
+                  className="w-full py-2 bg-white/5 hover:bg-white/10 text-[var(--text-main)] rounded-xl text-xs font-bold transition-all border border-white/5 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-red-400" />
+                  Scan Exit QR Code
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -2751,12 +3046,332 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
               </div>
               <div>
                 <h3 className="text-lg font-bold">Not Inside</h3>
-                <p className="text-xs text-[var(--text-muted)]">Log your visit below to enter</p>
+                <p className="text-xs text-[var(--text-muted)]">Log your visit using buttons below, or use your device camera for instant kiosk check-in.</p>
               </div>
+              <button 
+                onClick={() => setIsScannerOpen(true)}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Camera className="w-4 h-4" />
+                Quick Camera Check-In
+              </button>
             </>
           )}
         </div>
       </div>
+
+      {/* Fast Check-In QR Pass Section */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 glass-card p-6 md:p-8 bg-gradient-to-br from-[#111827] to-[#1f2937] border border-white/5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative overflow-hidden">
+          <div className="space-y-4 max-w-md z-10">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-400 text-xs font-bold uppercase tracking-wider rounded-full">
+              <QrCode className="w-3.5 h-3.5" />
+              Digital Gate Pass
+            </span>
+            <h3 className="text-2xl font-bold tracking-tight">Fast Check-In QR Pass</h3>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+              Use your personalized QR Pass for high-speed check-ins and check-outs at any library scanner terminal.
+            </p>
+            <div className="pt-2 flex flex-wrap gap-3">
+              {profile.studentId ? (
+                <>
+                  <button
+                    onClick={downloadPass}
+                    className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download QR Code
+                  </button>
+                  <button
+                    onClick={() => setIsQrModalOpen(true)}
+                    className="flex items-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/15 text-[var(--text-main)] rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Search className="w-4 h-4" />
+                    Expand ID pass
+                  </button>
+                </>
+              ) : (
+                <div className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 rounded-xl font-medium">
+                  ⚠️ Configure a Student ID in your Profile settings to enable QR pass generation.
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {profile.studentId && qrUrl && (
+            <div 
+              onClick={() => setIsQrModalOpen(true)}
+              className="w-full sm:w-auto flex flex-col items-center justify-center p-5 bg-white rounded-2xl shadow-2xl border border-white/10 shrink-0 cursor-pointer hover:scale-105 transition-transform group"
+            >
+              <div className="relative">
+                <img src={qrUrl} alt="Student ID QR Code" className="w-32 h-32 object-contain" referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
+              </div>
+              <span className="text-[10px] font-mono font-bold text-slate-800 uppercase tracking-widest mt-3 bg-slate-100 px-2 py-0.5 rounded">
+                ID: {profile.studentId}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Info card next to it */}
+        <div className="glass-card p-6 md:p-8 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20 flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            <h4 className="font-bold text-lg text-green-400 flex items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Gate Terminal Guide
+            </h4>
+            <ul className="text-xs text-[var(--text-muted)] space-y-2.5 list-disc list-inside">
+              <li>Save this QR pass to your device's photo gallery.</li>
+              <li>Present code within 3 inches of terminal scanner.</li>
+              <li>Wait for the confirmation chime to proceed.</li>
+            </ul>
+          </div>
+          <div className="text-[10px] text-green-500/80 font-bold uppercase tracking-wider bg-green-500/5 border border-green-500/10 py-1 px-2.5 rounded-lg w-fit">
+            Verified institutional pass ✔
+          </div>
+        </div>
+      </section>
+
+      {/* QR Code Digital Pass Modal */}
+      <AnimatePresence>
+        {isQrModalOpen && profile.studentId && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsQrModalOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            
+            {/* Modal Box */}
+            <motion.div 
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl p-6 w-full max-w-md relative z-10 text-white overflow-hidden space-y-6"
+            >
+              {/* Header inside the ID */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <img src="/New Era University Library Logo.png" alt="NEU Logo" className="w-8 h-8 object-contain" />
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#056247]">NEU Library</h4>
+                    <p className="text-[9px] text-white/50 uppercase tracking-widest font-mono">Digital Membership</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsQrModalOpen(false)}
+                  className="p-1 px-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-all text-xs cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Card visual pass */}
+              <div className="bg-gradient-to-b from-[#056247] to-[#044c38] rounded-2xl p-5 border border-emerald-500/10 shadow-lg relative overflow-hidden space-y-4">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Library Pass Holder</p>
+                    <h3 className="text-xl font-bold tracking-tight text-white">{profile.name}</h3>
+                    <p className="text-xs text-white/80 font-medium truncate max-w-[200px]">{profile.college}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0">
+                    <UserIcon className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10 text-xs">
+                  <div>
+                    <span className="text-[9px] text-emerald-300 uppercase tracking-wider block">ID Number</span>
+                    <span className="font-mono font-bold tracking-wider">{profile.studentId}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-emerald-300 uppercase tracking-wider block">Access Status</span>
+                    <span className="inline-flex items-center gap-1 font-bold text-[#4ade80] uppercase text-[10px]">
+                      Active User
+                    </span>
+                  </div>
+                </div>
+
+                {/* Subtitle / scan guideline */}
+                <div className="absolute right-[-10px] bottom-[-15px] text-white/[0.03] text-7xl font-sans select-none pointer-events-none font-bold">
+                  PASS
+                </div>
+              </div>
+
+              {/* Huge QR Code Area */}
+              <div className="bg-white rounded-2xl p-6 flex flex-col items-center justify-center shadow-inner space-y-3">
+                {qrUrl ? (
+                  <>
+                    <img src={qrUrl} alt="Big QR Code" className="w-48 h-48 object-contain" referrerPolicy="no-referrer" />
+                    <p className="text-[10px] font-mono font-bold text-slate-500 tracking-widest uppercase text-center">
+                      Scan to Check-In / Check-Out
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">Generating QR Code...</p>
+                )}
+              </div>
+
+              {/* Action row */}
+              <div className="flex gap-3">
+                <button
+                  onClick={downloadPass}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  Download PNG
+                </button>
+                <button
+                  onClick={() => setIsQrModalOpen(false)}
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                >
+                  Close Gate Pass
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Live Camera QR Code Scanner Modal */}
+        {isScannerOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsScannerOpen(false)}
+              className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            />
+            
+            {/* Modal Box */}
+            <motion.div 
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl p-4 sm:p-6 w-full max-w-sm relative z-10 text-white flex flex-col space-y-4 max-h-[95vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 px-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs font-mono font-bold uppercase tracking-widest">
+                    Live
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold uppercase tracking-wide">Kiosk QR Scanner</h4>
+                    <p className="text-[10px] text-white/50">Align code with dynamic terminal</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsScannerOpen(false)}
+                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Viewfinder Grid */}
+              <div className="aspect-square bg-slate-950 rounded-2xl overflow-hidden relative border border-white/10 shadow-inner flex items-center justify-center">
+                {/* Empty State / Loading / Permission */}
+                {!isCameraActive && !scannerError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-3 z-10 bg-slate-950">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                    <p className="text-xs text-white/60">Starting device camera...</p>
+                  </div>
+                )}
+
+                {/* Main Video Screen */}
+                <video 
+                  ref={videoRef} 
+                  className="absolute inset-0 w-full h-full object-cover" 
+                  playsInline 
+                  autoPlay 
+                  muted 
+                />
+
+                {/* Scanner Target Frame HUD Overlay */}
+                {!scanResult && !scannerError && (
+                  <div className="absolute inset-x-8 inset-y-8 border-2 border-emerald-500/30 rounded-2xl flex items-center justify-center pointer-events-none z-20">
+                    {/* Glowing corners */}
+                    <div className="absolute top-[-2px] left-[-2px] w-6 h-6 border-t-2 border-l-2 border-emerald-400"></div>
+                    <div className="absolute top-[-2px] right-[-2px] w-6 h-6 border-t-2 border-r-2 border-emerald-400"></div>
+                    <div className="absolute bottom-[-2px] left-[-2px] w-6 h-6 border-b-2 border-l-2 border-emerald-400"></div>
+                    <div className="absolute bottom-[-2px] right-[-2px] w-6 h-6 border-b-2 border-r-2 border-emerald-400"></div>
+
+                    {/* Animated scanning bar */}
+                    <motion.div 
+                      animate={{ y: [-110, 110, -110] }}
+                      transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+                      className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_8px_#34d399]"
+                    />
+                  </div>
+                )}
+
+                {/* Scan Success Overlay */}
+                {scanResult && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 bg-[#056247]/95 backdrop-blur-sm z-35 flex flex-col items-center justify-center text-center p-6 space-y-4"
+                  >
+                    <div className="w-16 h-16 bg-white/10 rounded-full border border-white/20 flex items-center justify-center text-white shadow-lg shadow-emerald-500/15">
+                      <Check className="w-8 h-8 text-emerald-300" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg text-emerald-200">Scan Complete</h4>
+                      <p className="text-xs text-white/95 mt-1 font-medium leading-relaxed max-w-[240px] mx-auto">{scanResult.message}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Error Overlay */}
+                {scannerError && (
+                  <div className="absolute inset-0 bg-red-950/95 backdrop-blur-sm z-35 flex flex-col items-center justify-center text-center p-6 space-y-4">
+                    <div className="w-12 h-12 bg-red-500/10 rounded-full border border-red-500/20 flex items-center justify-center text-red-400">
+                      <ShieldAlert className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-red-200">Camera Exception</h4>
+                      <p className="text-[10px] text-white/60 mt-1 uppercase tracking-wider font-mono max-w-[220px] mx-auto leading-normal">{scannerError}</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setIsScannerOpen(false);
+                        setTimeout(() => setIsScannerOpen(true), 100);
+                      }}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-600/20 cursor-pointer"
+                    >
+                      Retry Camera
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Guide/Instructions below viewfinder */}
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2.5">
+                <p className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Scanner Guidelines</p>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  {activeVisit 
+                    ? "Present any gate checkout barcode/QR code, or check out instantly by facing the scanner."
+                    : "Scan any official library entryway QR code or kiosk ticket, representing: Study, Research, Group Work, or Borrowing Books."}
+                </p>
+              </div>
+
+              {/* Footer cancel button */}
+              <button
+                onClick={() => setIsScannerOpen(false)}
+                className="w-full py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                Cancel and Return
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Log Visit Section */}
       {!activeVisit && (

@@ -117,11 +117,11 @@ export default function UserManagement({ currentUserRole, isSandbox }: { current
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2 p-1 bg-[var(--input-bg)] rounded-2xl w-fit border border-white/5">
+      <div className="flex w-full sm:w-auto gap-1 p-1 bg-[var(--input-bg)] rounded-2xl border border-white/5">
         <button 
           onClick={() => setActiveTab('users')}
           className={cn(
-            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            "flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all text-center",
             activeTab === 'users' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
           )}
         >
@@ -130,7 +130,7 @@ export default function UserManagement({ currentUserRole, isSandbox }: { current
         <button 
           onClick={() => setActiveTab('preauth')}
           className={cn(
-            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            "flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all text-center whitespace-nowrap",
             activeTab === 'preauth' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
           )}
         >
@@ -165,7 +165,7 @@ export default function UserManagement({ currentUserRole, isSandbox }: { current
           <thead className="bg-[var(--input-bg)] text-left text-[10px] md:text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             <tr>
               <th className="px-3 py-3 md:px-6 md:py-4">User</th>
-              <th className="px-3 py-3 md:px-6 md:py-4">College</th>
+              <th className="hidden md:table-cell px-3 py-3 md:px-6 md:py-4">College</th>
               <th className="px-3 py-3 md:px-6 md:py-4">Role</th>
               <th className="px-3 py-3 md:px-6 md:py-4">Status</th>
               <th className="px-3 py-3 md:px-6 md:py-4 text-right">Actions</th>
@@ -188,23 +188,24 @@ export default function UserManagement({ currentUserRole, isSandbox }: { current
                           u.name.charAt(0)
                         )}
                       </div>
-                      <div className="min-w-0 max-w-[120px] md:max-w-none">
+                      <div className="min-w-0 max-w-[120px] sm:max-w-none">
                         <p className="font-bold text-xs md:text-sm truncate">{u.name}</p>
                         <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">{u.email}</p>
+                        <p className="md:hidden text-[9px] text-blue-400 font-medium truncate mt-0.5">{u.college}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3 md:px-6 md:py-4 text-xs md:text-sm text-[var(--text-muted)] truncate max-w-[100px] md:max-w-none">{u.college}</td>
+                  <td className="hidden md:table-cell px-3 py-3 md:px-6 md:py-4 text-xs md:text-sm text-[var(--text-muted)] truncate max-w-[150px] md:max-w-none">{u.college}</td>
                   <td className="px-3 py-3 md:px-6 md:py-4">
-                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-full text-[10px] md:text-xs font-bold capitalize whitespace-nowrap">
+                    <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-[10px] md:text-xs font-bold capitalize whitespace-nowrap">
                       {u.role || 'user'}
                     </span>
                   </td>
                   <td className="px-3 py-3 md:px-6 md:py-4">
                     {u.isBlocked ? (
-                      <span className="px-2 py-1 bg-red-500/20 text-red-400 text-[8px] md:text-[10px] font-bold uppercase rounded-md border border-red-500/20 whitespace-nowrap">Blocked</span>
+                      <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-[8px] md:text-[10px] font-bold uppercase rounded-md border border-red-500/20 whitespace-nowrap">Blocked</span>
                     ) : (
-                      <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase rounded-md border border-emerald-500/20 whitespace-nowrap">Active</span>
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase rounded-md border border-emerald-500/20 whitespace-nowrap">Active</span>
                     )}
                   </td>
                   <td className="px-3 py-3 md:px-6 md:py-4 text-right">
