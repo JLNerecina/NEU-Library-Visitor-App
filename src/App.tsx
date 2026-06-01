@@ -3295,7 +3295,11 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
 
                 {/* Scanner Target Frame HUD Overlay */}
                 {!scanResult && !scannerError && (
-                  <div className="absolute inset-x-8 inset-y-8 border-2 border-emerald-500/30 rounded-2xl flex items-center justify-center pointer-events-none z-20">
+                  <motion.div 
+                    animate={{ opacity: [0.4, 1, 0.4] }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                    className="absolute inset-x-8 inset-y-8 border-2 border-emerald-500/40 rounded-2xl flex items-center justify-center pointer-events-none z-20"
+                  >
                     {/* Glowing corners */}
                     <div className="absolute top-[-2px] left-[-2px] w-6 h-6 border-t-2 border-l-2 border-emerald-400"></div>
                     <div className="absolute top-[-2px] right-[-2px] w-6 h-6 border-t-2 border-r-2 border-emerald-400"></div>
@@ -3308,7 +3312,7 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
                       transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
                       className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_8px_#34d399]"
                     />
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Scan Success Overlay */}
@@ -3352,13 +3356,29 @@ function StudentDashboard({ profile, onAction, onViewAll, logSystemActivity }: {
               </div>
 
               {/* Guide/Instructions below viewfinder */}
-              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2.5">
-                <p className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Scanner Guidelines</p>
-                <p className="text-xs text-white/70 leading-relaxed">
-                  {activeVisit 
-                    ? "Present any gate checkout barcode/QR code, or check out instantly by facing the scanner."
-                    : "Scan any official library entryway QR code or kiosk ticket, representing: Study, Research, Group Work, or Borrowing Books."}
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                <p className="text-[10px] uppercase font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5" />
+                  Scanner Guidelines
                 </p>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0 border border-emerald-500/20">
+                    <QrCode className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-white">How to position your pass</p>
+                    <ul className="text-[10px] sm:text-xs text-white/70 space-y-0.5 list-disc list-inside">
+                      <li>Hold your screen steady, <strong>4-8 inches</strong> away.</li>
+                      <li>Align the QR code within the highlighted corners.</li>
+                      <li>Ensure high screen brightness and avoid glare.</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/10 text-[10px] sm:text-xs text-blue-200 mt-2 leading-relaxed">
+                  {activeVisit 
+                    ? "Present any gate checkout barcode/QR code to check out."
+                    : "Scan any official library entryway QR code or kiosk seat ticket."}
+                </div>
               </div>
 
               {/* Footer cancel button */}
